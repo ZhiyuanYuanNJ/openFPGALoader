@@ -14,7 +14,7 @@ jobs:
     steps:
 
     - name: '🧰 Checkout'
-      uses: actions/checkout@v2
+      uses: actions/checkout@v4
 
     - name: '📓 BuildTheDocs (BTD)'
       uses: buildthedocs/btd@v0
@@ -27,7 +27,7 @@ jobs:
       run: sudo rm -rf doc/_build/html/.git
 
     - name: '📤 Upload artifact: HTML'
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v4
       with:
         name: openFPGALoader-Documentation
         path: doc/_build/html
@@ -40,12 +40,13 @@ jobs:
         os:
         - 20
         - 22
+        - 24
     name: '🚧🐧 Ubuntu ${{ matrix.os }} | build'
     runs-on: ubuntu-${{ matrix.os }}.04
     steps:
 
     - name: '🧰 Checkout'
-      uses: actions/checkout@v2
+      uses: actions/checkout@v4
 
     - name: '⚙️ Install dependencies'
       run: |
@@ -80,7 +81,7 @@ jobs:
         tar -cvzf ../ubtuntu${{ matrix.os }}.04-openFPGALoader.tgz -C dist .
 
     - name: '📤 Upload artifact: tarball'
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v4
       with:
         name: ubtuntu${{ matrix.os }}.04-openFPGALoader
         path: ubtuntu${{ matrix.os }}.04-openFPGALoader.tgz
@@ -101,7 +102,7 @@ jobs:
     steps:
 
     - name: '🧰 Checkout'
-      uses: actions/checkout@v2
+      uses: actions/checkout@v4
 
     - name: '⚙️ Install dependencies'
       run: |
@@ -124,6 +125,7 @@ jobs:
         os:
         - 20
         - 22
+        - 24
     name: '🚦🐧 Ubuntu ${{ matrix.os }} | test'
     runs-on: ubuntu-${{ matrix.os }}.04
     steps:
@@ -138,7 +140,7 @@ jobs:
           zlib1g
 
     - name: '📥 Download artifact: package'
-      uses: actions/download-artifact@v2
+      uses: actions/download-artifact@v4.1.7
       with:
         name: ubtuntu${{ matrix.os }}.04-openFPGALoader
 
@@ -187,7 +189,7 @@ jobs:
     steps:
 
     - name: '📥 Download artifacts'
-      uses: actions/download-artifact@v2
+      uses: actions/download-artifact@v4.1.7
       with:
         path: artifact
 

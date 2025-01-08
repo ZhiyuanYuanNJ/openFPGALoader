@@ -93,6 +93,8 @@
 #define XADC_VAUX13   0x1d
 #define XADC_VAUX14   0x1e
 #define XADC_VAUX15   0x1f
+#define XADC_TEMP_MAX 0x20
+#define XADC_TEMP_MIN 0x24
 #define XADC_SUPBOFFS 0x30
 #define XADC_ADCBOFFS 0x31
 #define XADC_ADCBGAIN 0x32
@@ -124,6 +126,9 @@
 #define XADC_ALARM13  0x5d
 #define XADC_ALARM14  0x5e
 #define XADC_ALARM15  0x5f
+
+#define XADC_VCC_MINOFFSET 0x24
+#define XADC_VCC_MAXOFFSET 0x20
 
 /* Boundary-scan instruction set based on the FPGA model */
 static std::map<std::string, std::map<std::string, std::vector<uint8_t>>>
@@ -351,6 +356,8 @@ Xilinx::Xilinx(Jtag *jtag, const std::string &filename,
 		_fpga_family = KINTEXUSP_FAMILY;
 	} else if (family == "artixusp") {
 		_fpga_family = ARTIXUSP_FAMILY;
+	} else if (family == "virtexus") {
+		_fpga_family = VIRTEXUS_FAMILY;
 	} else if (family == "virtexusp") {
 		_fpga_family = VIRTEXUSP_FAMILY;
 		_ircode_map = ircode_mapping.at("virtexusp");
@@ -407,9 +414,11 @@ Xilinx::Xilinx(Jtag *jtag, const std::string &filename,
 
 			unsigned int v = 0;
 			for (int i = 0; i < TEMP_MEAS; i++) {
-				v += Xilinx::xadc_single(0);
+				v += Xilinx::xadc_single(XADC_TEMP);
 			}
 			double temp = ((v/(double)TEMP_MEAS) * 503.975)/(1 << 16) - 273.15;
+			double max_temp = (Xilinx::xadc_single(XADC_TEMP_MAX) * 503.975)/(1 << 16) - 273.15;
+			double min_temp = (Xilinx::xadc_single(XADC_TEMP_MIN) * 503.975)/(1 << 16) - 273.15;
 
 			unsigned int channel_values[32];
 			for (int ch = 0; ch < MAX_CHANNEL; ch++) {
@@ -424,16 +433,32 @@ Xilinx::Xilinx(Jtag *jtag, const std::string &filename,
 				channel_values[ch] = v;
 			}
 
+			double vccint = (Xilinx::xadc_single(XADC_VCCINT)>>4)/4096.0 * 3.0; // ref: UG480
+			double vccintmax = (Xilinx::xadc_single(XADC_VCCINT + XADC_VCC_MAXOFFSET)>>4)/4096.0 * 3.0; // ref: UG480
+			double vccintmin = (Xilinx::xadc_single(XADC_VCCINT + XADC_VCC_MINOFFSET)>>4)/4096.0 * 3.0; // ref: UG480
+
+			double vccaux = (Xilinx::xadc_single(XADC_VCCAUX)>>4)/4096.0 * 3.0; // ref: UG480
+			double vccauxmax = (Xilinx::xadc_single(XADC_VCCAUX + XADC_VCC_MAXOFFSET)>>4)/4096.0 * 3.0; // ref: UG480
+			double vccauxmin = (Xilinx::xadc_single(XADC_VCCAUX + XADC_VCC_MINOFFSET)>>4)/4096.0 * 3.0; // ref: UG480
+
 			/* output as JSON dict */
 			std::cout << "{";
-			std::cout << "\"temp\": " << temp << ", ";
+			std::cout << "\"temp\": " << temp << ", " << std::endl;;
+			std::cout << "    \"maxtemp\": " << max_temp << ", " << std::endl;;
+			std::cout << "    \"mintemp\": " << min_temp << ", " << std::endl;;
 			std::cout << "\"raw\":  {";
 			for (int ch = 0; ch < MAX_CHANNEL; ch++) {
 				std::cout << "\"" << ch << "\": " << channel_values[ch]
 					 << ((ch == MAX_CHANNEL - 1)? "}" : ", ");
 			}
+			std::cout << "," << std::endl;
+			std::cout << "\"vccint\": " << vccint << ", " << std::endl;
+			std::cout << "   \"maxvccint\": " << vccintmax << ", " << std::endl;
+			std::cout << "   \"minvccint\": " << vccintmin << ", " << std::endl;
+			std::cout << "\"vccaux\": " << vccaux << ", " << std::endl;
+			std::cout << "   \"maxvccaux\": " << vccauxmax << ", " << std::endl;
+			std::cout << "   \"minvccaux\": " << vccauxmin << ", " << std::endl;
 			std::cout << "}" << std::endl;
-
 		} else {
 			throw std::runtime_error("Error: read_xadc only supported for Artix 7");
 		}
@@ -827,28 +852,7 @@ void Xilinx::program_mem(ConfigBitstreamParser *bitfile)
 	}
 }
 
-static const uint32_t reverseByte(uint32_t in) {
-	uint8_t out [4];
-	for (int i = 0; i < 4; i++) {
-		uint8_t tmp = (in >> (i*8)) & 0xff;
-		out[i] = BitParser::reverseByte(tmp);
-	}
-	return ((((uint32_t)out[0]) << 24) |
-		(((uint32_t)out[1]) << 16) |
-		(((uint32_t)out[2]) <<  8) |
-		(((uint32_t)out[3]) <<  0));
-}
-
-static const uint32_t reverseWord(uint32_t in) {
-	uint32_t out = 0;
-	for (int i = 0; i < 32; i++) {
-		out <<= 1;
-		out |= (in >> i) & 0x01;
-	}
-	return out;
-}
-
-static const uint32_t char_array_to_word(uint8_t *in)
+static uint32_t char_array_to_word(uint8_t *in)
 {
 	return (((uint32_t)in[3] << 24) |
 		((uint32_t)in[2] << 16) |
@@ -919,16 +923,62 @@ static const std::map<std::string, std::list<reg_struct_t>> reg_content = {
 			{0, "x1"}, {1, "x8"}, {2, "x16"}, {3, "x32"}),
 		REG_ENTRY("Reserved",       27, 5)
 	}},
+	// UG470 Table 5-34
+	{"WBSTAR", std::list<reg_struct_t>{
+		// Next bitstream start address. The default start address
+		//   is address zero.
+		REG_ENTRY("START ADDR",  0, 29),
+		REG_ENTRY("RS TS B",    29, 1,
+			{0, "3-state enabled (RS[1:0] disabled) (default)"},
+			{1, "3-state disabled (RS[1:0] enabled)"},
+		),
+		// RS[1:0] pin value on next warm boot. The default is 00.
+		REG_ENTRY("RS[1:0]",    30, 2),
+	}},
+	// UG470 Table 5-39
+	{"BOOTSTS", std::list<reg_struct_t>{
+		// Status 0 is valid
+		REG_ENTRY("VALID 0",       0, 1),
+		REG_ENTRY("FALLBACK 0",    1, 1,
+			{0, "Normal configuration"},
+			{1, "Fallback to default reconfiguration, RS[1:0] actively drives 2'b00"}
+		),
+		// Internal PROG triggered configuration
+		REG_ENTRY("IPROG 0",       2, 1),
+		// Watchdog time-out error
+		REG_ENTRY("WTO Error 0",   3, 1),
+		// ID_CODE error
+		REG_ENTRY("ID Error 0",    4, 1),
+		// CRC error
+		REG_ENTRY("CRC Error 0",   5, 1),
+		// BPI address counter wraparound error, supported in
+		//   asynchronous read mode
+		REG_ENTRY("WRAP Error 0",  6, 1),
+		// HMAC error
+		REG_ENTRY("HMAC Error 0",  7, 1),
+		REG_ENTRY("VALID 1",       8, 1),
+		REG_ENTRY("FALLBACK 1",    9, 1,
+			{0, "Normal configuration"},
+			{1, "Fallback to default reconfiguration, RS[1:0] actively drives 2'b00"}
+		),
+		REG_ENTRY("IPROG 1",      10, 1),
+		REG_ENTRY("WTO Error 1",  11, 1),
+		REG_ENTRY("ID Error 1",   12, 1),
+		REG_ENTRY("CRC Error 1",  13, 1),
+		REG_ENTRY("WRAP Error 1", 14, 1),
+		REG_ENTRY("HMAC Error 1", 15, 1),
+	}},
 };
 
 /* UG470 table 5-23 */
 static const std::map<std::string, uint8_t> reg_code = {
-	{"CTRL0",  0x05},  // Control register 0
-	{"STAT",   0x07},  // Status register
-	{"CONF0",  0x09},  // Configuration Option 0
-	{"CONF1",  0x0e},  // Configuration Option 1
-	{"BHSTAT", 0x16},  // Boot history status register
-	{"CTRL1",  0x18},  // Control register 1
+	{"CTRL0",   0x05},  // Control register 0
+	{"STAT",    0x07},  // Status register
+	{"CONF0",   0x09},  // Configuration Option 0
+	{"CONF1",   0x0e},  // Configuration Option 1
+	{"WBSTAR",  0x10},  // Warm Boot Start Address Register
+	{"BOOTSTS", 0x16},  // Boot history status register
+	{"CTRL1",   0x18},  // Control register 1
 };
 
 uint32_t Xilinx::dumpRegister(std::string reg_name)
@@ -980,7 +1030,7 @@ uint32_t Xilinx::dumpRegister(std::string reg_name)
 	for (int i = 0; i < 5; i++) {
 		if (i == 4)
 			next_state = Jtag::SELECT_IR_SCAN;
-		const uint32_t tmp = reverseWord(cfg_packets[i]);
+		const uint32_t tmp = BitParser::reverse_32(cfg_packets[i]);
 		const uint8_t cfg[] = {
 			static_cast<uint8_t>((tmp >>  0) & 0xff),
 			static_cast<uint8_t>((tmp >>  8) & 0xff),
@@ -996,7 +1046,7 @@ uint32_t Xilinx::dumpRegister(std::string reg_name)
 	_jtag->go_test_logic_reset();
 
 	uint32_t reg_word = char_array_to_word(reg);
-	reg_word = reverseWord(reg_word);
+	reg_word = BitParser::reverse_32(reg_word);
 	return reg_word;
 }
 
@@ -1008,7 +1058,7 @@ void Xilinx::displayRegister(const std::string reg_name, const uint32_t reg_val)
 	}
 
 	std::stringstream raw_val;
-	raw_val << "0x" << std::hex << std::to_string(reg_val);
+	raw_val << "0x" << std::hex << reg_val;
 	printSuccess("Register raw value: " + raw_val.str());
 
 	const std::list<reg_struct_t> regs = reg->second;
@@ -1019,11 +1069,14 @@ void Xilinx::displayRegister(const std::string reg_name, const uint32_t reg_val)
 		uint32_t val = (reg_val >> offset) & mask;
 		std::stringstream ss, desc;
 		desc << r.description;
-		ss << std::setw(15) << std::left << r.description;
-		if (r.reg_cnt.size() != 0)
+		ss << std::setw(16) << std::left << r.description;
+		if (r.reg_cnt.size() != 0) {
 			ss << r.reg_cnt[val];
-		else
-			ss << std::to_string(val);
+		} else {
+			std::stringstream hex_val;
+			hex_val << "0x" << std::hex << val;
+			ss << hex_val.str();
+		}
 
 		printInfo(ss.str());
 	}
@@ -1080,6 +1133,21 @@ bool Xilinx::dumpFlash(uint32_t base_addr, uint32_t len)
 	return true;
 }
 
+bool Xilinx::detect_flash()
+{
+	if (_flash_chips & PRIMARY_FLASH) {
+		select_flash_chip(PRIMARY_FLASH);
+		if (!SPIInterface::detect_flash())
+			return false;
+	}
+	if (_flash_chips & SECONDARY_FLASH) {
+		select_flash_chip(SECONDARY_FLASH);
+		if (!SPIInterface::detect_flash())
+			return false;
+	}
+	return true;
+}
+
 bool Xilinx::protect_flash(uint32_t len)
 {
 	if (_flash_chips & PRIMARY_FLASH) {
@@ -1105,6 +1173,21 @@ bool Xilinx::unprotect_flash()
 	if (_flash_chips & SECONDARY_FLASH) {
 		select_flash_chip(SECONDARY_FLASH);
 		if (!SPIInterface::unprotect_flash())
+			return false;
+	}
+	return true;
+}
+
+bool Xilinx::set_quad_bit(bool set_quad)
+{
+	if (_flash_chips & PRIMARY_FLASH) {
+		select_flash_chip(PRIMARY_FLASH);
+		if (!SPIInterface::set_quad_bit(set_quad))
+			return false;
+	}
+	if (_flash_chips & SECONDARY_FLASH) {
+		select_flash_chip(SECONDARY_FLASH);
+		if (!SPIInterface::set_quad_bit(set_quad))
 			return false;
 	}
 	return true;
@@ -1706,7 +1789,10 @@ void Xilinx::xc2c_init(uint32_t idcode)
 {
 	_fpga_family = XC2C_FAMILY;
 	std::string model = fpga_list[idcode].model;
-	int underscore_pos = model.find_first_of('_', 0);
+	size_t underscore_pos = model.find_first_of('_', 0);
+	if (underscore_pos == model.npos) {
+		underscore_pos = model.length();
+	}
 	snprintf(_cpld_base_name, underscore_pos,
 			"%s", model.substr(0, underscore_pos).c_str());
 	switch ((idcode >> 16) & 0x3f) {

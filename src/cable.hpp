@@ -28,6 +28,7 @@ enum communication_type {
 	MODE_JETSONNANO_BITBANG, /*! Bitbang gpio pins */
 	MODE_REMOTEBITBANG,    /*! Remote Bitbang mode */
 	MODE_CH347,            /*! CH347 JTAG mode */
+	MODE_GWU2X,            /*! Gowin GWU2X JTAG mode */
 };
 
 /*!
@@ -77,6 +78,8 @@ struct cable_t {
 /* Others cable configuration */
 #define CABLE_DEF(_type, _vid, _pid) \
 	{_type, _vid, _pid, 0, 0, {}}
+#define CABLE_DEF_FULL(_type, _vid, _pid, _blv, _bld, _bhv, _bhd) \
+	{_type, _vid, _pid, 0, 0, {0, _blv, _bld, _bhv, _bhd, 0, -1}}
 
 static std::map <std::string, cable_t> cable_list = {
 	// last 4 bytes are ADBUS7-0 value, ADBUS7-0 direction, ACBUS7-0 value, ACBUS7-0 direction
@@ -110,12 +113,14 @@ static std::map <std::string, cable_t> cable_list = {
 	{"ft4232",             FTDI_SER(0x0403, 0x6011, FTDI_INTF_A, 0x08, 0x0B, 0x08, 0x0B)},
 	{"ft4232hp",           FTDI_SER(0x0403, 0x6043, FTDI_INTF_A, 0x08, 0x0B, 0x00, 0x00)},
 	{"ft4232hp_b",         FTDI_SER(0x0403, 0x6043, FTDI_INTF_B, 0x08, 0x0B, 0x00, 0x00)},
+	{"gwu2x",              CABLE_DEF_FULL(MODE_GWU2X, 0x33AA, 0x0120, 0x02, 0x07, 0x0, 0x0)},
 	{"ecpix5-debug",       FTDI_SER(0x0403, 0x6010, FTDI_INTF_A, 0xF8, 0xFB, 0xFF, 0xFF)},
 	{"jlink",              CABLE_DEF(MODE_JLINK, 0x1366, 0x0105                        )},
 	{"jlink_base",         CABLE_DEF(MODE_JLINK, 0x1366, 0x0101                        )},
 	{"jtrace_pro",         CABLE_DEF(MODE_JLINK, 0x1366, 0x1020                        )},
 	{"jtag-smt2-nc",       FTDI_SER(0x0403, 0x6014, FTDI_INTF_A, 0xe8, 0xeb, 0x00, 0x60)},
 	{"lpc-link2",          CMSIS_CL(0x1fc9, 0x0090                                     )},
+	{"numato",			   FTDI_SER(0x2a19, 0x1009, FTDI_INTF_B, 0x08, 0x4b, 0x00, 0x00)},
 	{"orbtrace",           CMSIS_CL(0x1209, 0x3443                                     )},
 	{"papilio",            FTDI_SER(0x0403, 0x6010, FTDI_INTF_A, 0x08, 0x0B, 0x09, 0x0B)},
 	{"steppenprobe",       FTDI_SER(0x0403, 0x6010, FTDI_INTF_A, 0x58, 0xFB, 0x00, 0x99)},

@@ -41,16 +41,21 @@ class Device {
 		virtual void program(unsigned int offset,
 				bool unprotect_flash) = 0;
 
-		virtual bool read_register(const std::string reg_name) { return false;}
+		virtual bool read_register(const std::string /*reg_name*/) { return false;}
 
 		/**********************/
 		/*    flash access    */
 		/**********************/
+		virtual bool detect_flash() {
+			printError("detect flash not supported"); return false;}
 		virtual bool dumpFlash(uint32_t base_addr, uint32_t len) {
 			(void) base_addr; (void) len;
 			printError("dump flash not supported"); return false;}
 		virtual bool protect_flash(uint32_t len) = 0;
 		virtual bool unprotect_flash() = 0;
+		virtual bool set_quad_bit(bool set_quad) {
+			(void)set_quad;
+			printError("Error: SPI Flash Quad mode configuration unsupported"); return false;}
 		virtual bool bulk_erase_flash() = 0;
 
 		virtual uint32_t idCode() = 0;

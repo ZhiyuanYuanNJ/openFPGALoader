@@ -25,7 +25,7 @@ class Lattice: public Device, SPIInterface {
 			int8_t verbose, bool skip_load_bridge, bool skip_reset);
 		uint32_t idCode() override;
 		int userCode();
-		void reset() override {}
+		void reset() override;
 		void program(unsigned int offset, bool unprotect_flash) override;
 		bool program_mem();
 		bool program_flash(unsigned int offset, bool unprotect_flash);
@@ -35,6 +35,12 @@ class Lattice: public Device, SPIInterface {
 			return SPIInterface::dump(base_addr, len);
 		}
 
+		/*!
+		 * \brief display SPI flash ID and status register
+		 */
+		bool detect_flash() override {
+			return SPIInterface::detect_flash();
+		}
 		/*!
 		 * \brief protect SPI flash blocks
 		 */

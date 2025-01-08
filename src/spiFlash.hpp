@@ -99,6 +99,7 @@ class SPIFlash {
 		virtual void read_id();
 		uint16_t readNonVolatileCfgReg();
 		uint16_t readVolatileCfgReg();
+		bool set_quad_bit(bool set_quad);
 
 	protected:
 		/*!
@@ -113,6 +114,12 @@ class SPIFlash {
 		 * \return BP
 		 */
 		uint8_t get_bp();
+
+		/* \brief convert bp_offset (see spiFlashdb) to a mask
+		 * \return bitmask (0x1c (default) for unknown device)
+		 *         or based on bp_offset (see spiFlashdb)
+		 */
+		uint8_t get_bp_mask();
 
 	public:
 		/*!

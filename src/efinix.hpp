@@ -28,6 +28,7 @@ class Efinix: public Device, SPIInterface {
 		~Efinix();
 
 		void program(unsigned int offset, bool unprotect_flash) override;
+		bool detect_flash() override;
 		bool dumpFlash(uint32_t base_addr, uint32_t len) override;
 		bool protect_flash(uint32_t len) override {
 			(void) len;
@@ -55,9 +56,9 @@ class Efinix: public Device, SPIInterface {
 			UNKNOWN_FAMILY  = 999
 		};
 		void init_common(const Device::prog_type_t &prg_type);
-		void programSPI(unsigned int offset, const uint8_t *data,
+		bool programSPI(unsigned int offset, const uint8_t *data,
 				const int length, const bool unprotect_flash);
-		void programJTAG(const uint8_t *data, const int length);
+		bool programJTAG(const uint8_t *data, const int length);
 		bool post_flash_access() override;
 		bool prepare_flash_access() override;
 		FtdiSpi *_spi;

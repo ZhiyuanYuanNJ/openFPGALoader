@@ -10,6 +10,7 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include <memory>
 
 #include "configBitstreamParser.hpp"
 #include "device.hpp"
@@ -21,14 +22,18 @@ class Gowin: public Device, SPIInterface {
 	public:
 		Gowin(Jtag *jtag, std::string filename, const std::string &file_type,
 				std::string mcufw, Device::prog_type_t prg_type,
-				bool external_flash, bool verify, int8_t verbose);
-		~Gowin();
+				bool external_flash, bool verify, int8_t verbose,
+				const std::string& user_flash);
 		uint32_t idCode() override;
 		void reset() override;
 		void program(unsigned int offset, bool unprotect_flash) override;
 		bool connectJtagToMCU() override;
 
 		/* spi interface */
+		bool detect_flash() override {
+			if (is_gw5a || is_gw2a)
+				return SPIInterface::detect_flash();
+			printError("detect flash not supported"); return false;}
 		bool protect_flash(uint32_t len) override {
 			(void) len;
 			printError("protect flash not supported"); return false;}
@@ -37,7 +42,7 @@ class Gowin: public Device, SPIInterface {
 				return SPIInterface::unprotect_flash();
 			printError("unprotect flash not supported"); return false;}
 		bool bulk_erase_flash() override {
-			if (is_gw5a)
+			if (is_gw5a || is_gw2a)
 				return SPIInterface::bulk_erase_flash();
 			printError("bulk erase flash not supported"); return false;}
 		bool dumpFlash(uint32_t base_addr, uint32_t len) override;
@@ -100,7 +105,7 @@ class Gowin: public Device, SPIInterface {
 		void programExtFlash(unsigned int offset, bool unprotect_flash);
 		void programSRAM();
 		bool writeSRAM(const uint8_t *data, int length);
-		bool writeFLASH(uint32_t page, const uint8_t *data, int length);
+		bool writeFLASH(uint32_t page, const uint8_t *data, int length, bool invert_bits = false);
 		void displayReadReg(const char *, uint32_t dev);
 		uint32_t readStatusReg();
 		uint32_t readUserCode();
@@ -124,11 +129,14 @@ class Gowin: public Device, SPIInterface {
 		 */
 		bool gw5a_enable_spi();
 
-		ConfigBitstreamParser *_fs;
+		std::unique_ptr<ConfigBitstreamParser> _fs;
+		std::unique_ptr<ConfigBitstreamParser> _mcufw;
+		std::unique_ptr<ConfigBitstreamParser> _userflash;
 		uint32_t _idcode;
 		bool is_gw1n1;
-		bool is_gw2a;
 		bool is_gw1n4;
+		bool is_gw1n9;
+		bool is_gw2a;
 		bool is_gw5a;
 		bool skip_checksum;   /**< bypass checksum verification (GW2A) */
 		bool _external_flash; /**< select between int or ext flash */
@@ -137,7 +145,6 @@ class Gowin: public Device, SPIInterface {
 		uint8_t _spi_di;      /**< di signal (mosi) offset in bscan SPI */
 		uint8_t _spi_do;      /**< do signal (miso) offset in bscan SPI */
 		uint8_t _spi_msk;     /** default spi msk with only do out */
-		ConfigBitstreamParser *_mcufw;
 		JtagInterface::tck_edge_t _prev_rd_edge; /**< default probe rd edge cfg */
 		JtagInterface::tck_edge_t _prev_wr_edge; /**< default probe wr edge cfg */
 };

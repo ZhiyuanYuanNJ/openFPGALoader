@@ -44,7 +44,7 @@ using namespace std;
 
 struct arguments {
 	int8_t verbose;
-	bool reset, detect, verify, scan_usb;
+	bool reset, detect, detect_flash, verify, scan_usb;
 	unsigned int offset;
 	string bit_file;
 	string secondary_bit_file;
@@ -81,6 +81,8 @@ struct arguments {
 	string ip_adr;
 	uint32_t protect_flash;
 	bool unprotect_flash;
+	bool enable_quad;
+	bool disable_quad;
 	bool bulk_erase_flash;
 	string flash_sector;
 	bool skip_load_bridge;
@@ -95,6 +97,7 @@ struct arguments {
 	bool read_dna;
 	bool read_xadc;
 	string read_register;
+	string user_flash;
 };
 
 int run_xvc_server(const struct arguments &args, const cable_t &cable,
@@ -112,7 +115,10 @@ int main(int argc, char **argv)
 	jtag_pins_conf_t pins_config = {0, 0, 0, 0};
 
 	/* command line args. */
-	struct arguments args = {0, false, false, false, false, 0, "", "", "", "-", "", -1,
+	struct arguments args = {0,
+			//reset, detect, detect_flash, verify, scan_usb
+			false,   false,  false,        false,  false,
+			0, "", "", "", "-", "", -1,
 			-1, 0, false, "-", false, false, false, false, Device::PRG_NONE, false,
 			/* spi dfu    file_type fpga_part bridge_path probe_firmware */
 			false, false, "",       "",       "",         "",
@@ -120,11 +126,12 @@ int main(int argc, char **argv)
 			-1,            0,        "primary",   false,         -1,
 			/* vid, pid, index bus_addr, device_addr */
 				0,   0,   -1,     0,         0,
-			"127.0.0.1", 0, false, false, "", false, false,
+			"127.0.0.1", 0, false, false, false, false, "", false, false,
 			/* xvc server */
 			false, 3721, "-",
 			"", false, {},  // mcufw conmcu, user_misc_dev_list
-			false, false, "" // read_dna, read_xadc, read_register
+			false, false, "", // read_dna, read_xadc, read_register
+			"" // user_flash
 	};
 	/* parse arguments */
 	try {
@@ -500,7 +507,7 @@ int main(int argc, char **argv)
 	}
 
 	if (found != 0) {
-		if (args.index_chain == -1) {
+		if (args.index_chain < 0) {
 			for (size_t i = 0; i < found; i++) {
 				if (fpga_list.find(listDev[i]) != fpga_list.end()) {
 					index = i;
@@ -518,7 +525,7 @@ int main(int argc, char **argv)
 			}
 		} else {
 			index = args.index_chain;
-			if (index > found || index < 0) {
+			if (index > found) {
 				printError("wrong index for device in JTAG chain");
 				delete(jtag);
 				return EXIT_FAILURE;
@@ -577,7 +584,7 @@ int main(int argc, char **argv)
 				args.verify, args.verbose);
 		} else if (fab == "Gowin") {
 			fpga = new Gowin(jtag, args.bit_file, args.file_type, args.mcufw,
-				args.prg_type, args.external_flash, args.verify, args.verbose);
+				args.prg_type, args.external_flash, args.verify, args.verbose, args.user_flash);
 		} else if (fab == "lattice") {
 			fpga = new Lattice(jtag, args.bit_file, args.file_type,
 				args.prg_type, args.flash_sector, args.verify, args.verbose, args.skip_load_bridge, args.skip_reset);
@@ -631,6 +638,29 @@ int main(int argc, char **argv)
 	/* protect SPI flash */
 	if (args.protect_flash != 0) {
 		fpga->protect_flash(args.protect_flash);
+	}
+
+	/* Enable/disable SPI Flash quad mode */
+	if (args.enable_quad || args.disable_quad) {
+		bool ret = true;
+		if (args.enable_quad && args.disable_quad) {
+			printError("Error: can't set enable and disable Quad mode at same time");
+			ret = false;
+		} else  if (!fpga->set_quad_bit(args.enable_quad)) {
+			printError("Error: Failed to enable/disable Quad mode");
+			ret = false;
+		}
+
+		if (!ret) {
+			delete(fpga);
+			delete(jtag);
+			return EXIT_FAILURE;
+		}
+	}
+
+	/* detect/display flash */
+	if (args.detect_flash != 0) {
+		fpga->detect_flash();
 	}
 
 	if (args.prg_type == Device::RD_FLASH) {
@@ -755,12 +785,16 @@ int parse_opt(int argc, char **argv, struct arguments *args,
 			("d,device",  "device to use (/dev/ttyUSBx)",
 				cxxopts::value<string>(args->device))
 #endif
-			("detect",      "detect FPGA",
+			("detect",      "detect FPGA, add -f to show connected flash",
 				cxxopts::value<bool>(args->detect))
 			("dfu",   "DFU mode", cxxopts::value<bool>(args->dfu))
 			("dump-flash",  "Dump flash mode")
 			("bulk-erase",   "Bulk erase flash",
 				cxxopts::value<bool>(args->bulk_erase_flash))
+			("enable-quad",   "Enable quad mode for SPI Flash",
+				cxxopts::value<bool>(args->enable_quad))
+			("disable-quad",   "Disable quad mode for SPI Flash",
+				cxxopts::value<bool>(args->disable_quad))
 			("target-flash",
 				"for boards with multiple flash chips (some Xilinx UltraScale"
 				" boards), select the target flash: primary (default), secondary or both",
@@ -833,12 +867,14 @@ int parse_opt(int argc, char **argv, struct arguments *args,
 				cxxopts::value<std::string>(args->mcufw))
 			("conmcu", "Connect JTAG to MCU",
 				cxxopts::value<bool>(args->conmcu))
-			("D,read_dna", "Read DNA (Xilinx FPGA only)",
+			("D,read-dna", "Read DNA (Xilinx FPGA only)",
 				cxxopts::value<bool>(args->read_dna))
-			("X,read_xadc", "Read XADC (Xilinx FPGA only)",
+			("X,read-xadc", "Read XADC (Xilinx FPGA only)",
 				cxxopts::value<bool>(args->read_xadc))
 			("read-register", "Read Status Register(Xilinx FPGA only)",
 				cxxopts::value<string>(rd_reg))
+			("user-flash", "User flash file (Gowin LittleBee FPGA only)",
+				cxxopts::value<string>(args->user_flash))
 			("V,Version", "Print program version");
 
 		options.parse_positional({"bitstream"});
@@ -1039,6 +1075,8 @@ int parse_opt(int argc, char **argv, struct arguments *args,
 			!args->detect &&
 			!args->protect_flash &&
 			!args->unprotect_flash &&
+			!args->enable_quad &&
+			!args->disable_quad &&
 			!args->bulk_erase_flash &&
 			!args->xvc &&
 			!args->reset &&
@@ -1049,6 +1087,14 @@ int parse_opt(int argc, char **argv, struct arguments *args,
 			printError("Error: bitfile not specified");
 			cout << options.help() << endl;
 			throw std::exception();
+		}
+
+		// user ask detect with flash set
+		// detect/display flash CHIP informations instead
+		// of FPGA details
+		if (args->detect && args->prg_type == Device::WR_FLASH) {
+			args->detect = false;
+			args->detect_flash = true;
 		}
 	} catch (const cxxopts::OptionException& e) {
 		cerr << "Error parsing options: " << e.what() << endl;
@@ -1107,7 +1153,7 @@ void displaySupported(const struct arguments &args)
 	}
 
 	if (args.scan_usb) {
-		libusb_ll usb(0, 0);
+		libusb_ll usb(0, 0, args.verbose);
 		usb.scan();
 	}
 }

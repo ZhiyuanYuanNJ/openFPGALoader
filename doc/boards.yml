@@ -265,6 +265,13 @@
   Memory: OK
   Flash: OK
 
+- ID: cyc5000
+  Description: Trenz CYC5000
+  URL: https://shop.trenz-electronic.de/en/TEI0050-01-AAH13A-CYC5000-with-Cyclone-V-FPGA-25kLE-8-MByte-SDRAM
+  FPGA: Cyclone V 5CEBA2U15C8
+  Memory: OK
+  Flash: OK
+
 - ID: c10lp-refkit
   Description: Trenz c10lp-refkit
   URL: https://shop.trenz-electronic.de/en/TEI0009-02-055-8CA-Cyclone-10-LP-RefKit-10CL055-Development-Board-32-MByte-SDRAM-16-MByte-Flash
@@ -322,6 +329,13 @@
   URL: https://www.terasic.com.tw/cgi-bin/page/archive.pl?Language=English&CategoryNo=&No=944&PartNo=1
   FPGA: MAX 10 10M50DAF484C6GES
   Memory: OK
+
+- ID: dragonL
+  Description: KNJN Dragon-L PCI Express & HDMI FPGA board
+  URL: https://www.knjn.com/FPGA-Dragon-L.html
+  FPGA: Spartan6 xc6slx25Tcsg324
+  Memory: OK
+  Flash: OK
 
 - ID: ecp5_evn
   Description: Lattice ECP5 5G Evaluation Board
@@ -496,6 +510,13 @@
   Memory: OK
   Flash: OK
 
+- ID: lilygo-t-fpga
+  Description: Lilygo T-FPGA
+  URL: https://www.lilygo.cc/products/t-fpga
+  FPGA: Gowin GW1NSR-LV4CQN48PC6/15
+  Memory: OK
+  Flash: OK
+
 - ID: machXO2EVN
   Description: Lattice MachXO2 Breakout Board Evaluation Kit
   URL: https://www.latticesemi.com/products/developmentboardsandkits/machxo2breakoutboard
@@ -523,6 +544,13 @@
   FPGA: AMD Xilinx XC7Z045/XC7Z100-2FFG900
   Memory: OK
   Flash: NA
+
+- ID: mimas_a7
+  Description: Numato Systems Mimas A7
+  URL: https://numato.com/product/mimas-a7-artix-7-fpga-development-board/
+  FPGA: Artix xc7a50tfgg484
+  Memory: OK
+  Flash: OK
 
 - ID: nexys_a7_50
   Description: Digilent Nexys A7(Nexys 4 DDR)
@@ -832,6 +860,20 @@
   Memory: OK
   Flash: OK
 
+- ID: vc709
+  Description: AMD Virtex-7 FPGA VC709 Connectivity Kit
+  URL: https://www.xilinx.com/products/boards-and-kits/dk-v7-vc709-g.html
+  FPGA: Virtex7 xc7vx690tffg1761
+  Memory: OK
+  Flash: NA
+
+- ID: vcu108
+  Description: Xilinx VCU108
+  URL: https://www.xilinx.com/products/boards-and-kits/vcu108.html
+  FPGA: Virtex UltraScale xcvu095-ffva2104
+  Memory: OK
+  Flash: TBD
+
 - ID: vcu118
   Description: Xilinx VCU118
   URL: https://www.xilinx.com/products/boards-and-kits/vcu118.html
@@ -946,3 +988,10 @@
   FPGA: xc7s50csga324?
   Memory: OK
   Flash: OK
+
+- ID: efinix_jtag_ft2232
+  Description: Efinix FT2232 development boards with JTAG on port 2 (Ti180J484 EVK, etc)
+  URL: https://www.efinixinc.com/products-devkits-titaniumti180j484.html
+  FPGA: Titanium Ti180J484 (and others)
+  Memory: OK
+  Flash: NA

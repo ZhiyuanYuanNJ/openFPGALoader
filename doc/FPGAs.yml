@@ -31,13 +31,17 @@ Cologne Chip:
 Efinix:
 
   - Description: Trion
-    Model: T8
+    Model:
+      - T8
+      - T13
     URL: https://www.efinixinc.com/products-trion.html
     Memory: NA
     Flash: OK
 
   - Description: Titanium
-    Model: Ti60
+    Model:
+      - Ti60
+      - Ti180
     URL: https://www.efinixinc.com/products-titanium.html
     Memory: NA
     Flash: OK
@@ -55,6 +59,7 @@ Gowin:
      - GW1NSR-4C
      - GW1NZ-1
      - GW2A-18C
+     - GW2A-55
      - GW5AST-138
      - GW5AT-138
      - GW5A-25
@@ -65,6 +70,18 @@ Gowin:
 
 Intel:
 
+  - Description: Max II(CPLD)
+    Model: EPM240T100C5N
+    URL: https://www.intel.com/content/www/us/en/support/programmable/support-resources/devices/max-ii-support.html
+    Memory: OK
+    Flash: OK
+
+  - Description: Cyclone II
+    Model: EP2C5T144C8N
+    URL: https://www.intel.com/content/www/us/en/support/programmable/support-resources/devices/cyclone-ii-support.html
+    Memory: OK
+    Flash: OK
+    
   - Description: Cyclone III
     Model: EP3C16
     URL: https://www.intel.com/content/www/us/en/programmable/products/fpga/cyclone-series/cyclone-iii/support.html
@@ -104,6 +121,13 @@ Intel:
     URL: https://www.intel.com/content/www/us/en/products/programmable/fpga/cyclone-v.html
     Memory: OK
     Flash: NT
+  
+  - Description: Stratix V GS
+    Model:
+      - 5SGSD5
+    URL: https://www.intel.de/content/www/de/de/products/sku/210318/stratix-v-5sgsd5-fpga/specifications.html
+    Memory: OK
+    Flash: OK
 
   - Description: Cyclone 10 LP
     Model: 10CL025
@@ -115,7 +139,7 @@ Intel:
     Model: 10M08
     URL: https://www.intel.fr/content/www/fr/fr/products/details/fpga/max/10.html
     Memory: SVF
-    Flash: SVF
+    Flash: POF
 
 
 Lattice:
@@ -258,7 +282,7 @@ Xilinx:
       - xcku115
     URL: https://www.xilinx.com/products/silicon-devices/fpga/kintex-ultrascale.html#productTable
     Memory: OK
-    Flash: NA
+    Flash: OK (primary)
 
   - Description: Virtex 6
     Model:
@@ -266,6 +290,13 @@ Xilinx:
     URL: https://www.xilinx.com/products/silicon-devices/fpga/virtex-6.html
     Memory: OK
     Flash: OK
+
+  - Description: Virtex UltraScale
+    Model:
+      - xcvu095
+    URL: https://www.amd.com/en/products/adaptive-socs-and-fpgas/fpga/virtex-ultrascale.html#productTable
+    Memory: OK
+    Flash: TBD
 
   - Description: Virtex UltraScale+
     Model:

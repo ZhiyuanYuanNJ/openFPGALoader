@@ -39,7 +39,9 @@ static std::map <uint32_t, fpga_model> fpga_list = {
 	{0x05046093, {"xilinx", "xcf",      "xcf04s",    8}},
 
 	/* Xilinx XC2 */
+	{0x06e59093, {"xilinx", "xc2c",     "xc2c64a",   8}},
 	{0x06e5d093, {"xilinx", "xc2c",     "xc2c64a",   8}},
+	{0x06e5e093, {"xilinx", "xc2c",     "xc2c64a",   8}},
 	{0x06e1c093, {"xilinx", "xc2c",     "xc2c32a",   8}},
 
 	/* Xilinx XC9 */
@@ -57,10 +59,14 @@ static std::map <uint32_t, fpga_model> fpga_list = {
 	{0x04001093, {"xilinx", "spartan6", "xc6slx9",         6}},
 	{0x04002093, {"xilinx", "spartan6", "xc6slx16",        6}},
 	{0x04004093, {"xilinx", "spartan6", "xc6slx25",        6}},
+	{0x24024093, {"xilinx", "spartan6", "xc6slx25T",       6}},
 	{0x04008093, {"xilinx", "spartan6", "xc6slx45",        6}},
 	{0x04028093, {"xilinx", "spartan6", "xc6slx45T",       6}},
 	{0x04011093, {"xilinx", "spartan6", "xc6slx100",       6}},
 	{0x4403d093, {"xilinx", "spartan6", "xc6slx150T",      6}},
+
+	/* Xilinx Spartan7 */
+	{0x03622093, {"xilinx", "spartan7", "xc7s6",           6}},
 	{0x03620093, {"xilinx", "spartan7", "xc7s15ftgb196-1", 6}},
 	{0x037c4093, {"xilinx", "spartan7", "xc7s25",          6}},
 	{0x0362f093, {"xilinx", "spartan7", "xc7s50",          6}},
@@ -83,12 +89,14 @@ static std::map <uint32_t, fpga_model> fpga_list = {
 	{0x03656093, {"xilinx", "kintex7", "xc7k410t", 6}},
 	{0x23752093, {"xilinx", "kintex7", "xc7k420t", 6}},
 
-	/* Xilinx XC7V */
+	/* Xilinx 7-Series / Virtex7 */
 	{0x03667093, {"xilinx", "virtex7", "xc7vx330t",  6}},
+	{0x33691093, {"xilinx", "virtex7", "xc7vx690t",  6}},
 
 	/* Xilinx 7-Series / Zynq */
 	{0x03722093, {"xilinx", "zynq",     "xc7z010", 6}},
 	{0x03727093, {"xilinx", "zynq",     "xc7z020", 6}},
+	{0x1372c093, {"xilinx", "zynq",     "xc7z030", 6}},
 	{0x23731093, {"xilinx", "zynq",     "xc7z045", 6}},
 	{0x03736093, {"xilinx", "zynq",     "xc7z100", 6}},
 
@@ -97,6 +105,9 @@ static std::map <uint32_t, fpga_model> fpga_list = {
 	{0x13822093, {"xilinx", "kintexus", "xcku040", 6}},
 	{0x13919093, {"xilinx", "kintexus", "xcku060", 6}},
 	{0x1390d093, {"xilinx", "kintexus", "xcku115", 6}},
+
+	/* Xilinx Ultrascale / Virtex */
+	{0x03842093, {"xilinx", "virtexus", "xcvu095", 6}},
 
 	/* Xilinx Ultrascale+ / Artix */
 	{0x04AC2093, {"xilinx", "artixusp", "xcau15p", 6}},
@@ -166,12 +177,15 @@ static std::map <uint32_t, fpga_model> fpga_list = {
 	/*                             Altera                                     */
 	/**************************************************************************/
 
+	/* Altera Max II*/
+	{0x020a10dd, {"altera", "max II", "EPM240T100C5N", 10}},
+
 	/* Altera Cyclone II/III/IV/10 LP */
-        {0x020b10dd, {"altera", "cyclone II", "EP2C5", 10}},
+	{0x020b10dd, {"altera", "cyclone II",           "EP2C5",                    10}},
 	{0x020f10dd, {"altera", "cyclone III/IV/10 LP", "EP4CE6/EP4CE10",           10}},
 	{0x020f20dd, {"altera", "cyclone III/IV/10 LP", "EP3C16/EP4CE15/10CL016",   10}},
 	{0x020f70dd, {"altera", "cyclone III/IV/10 LP", "EP3C120/EP4CE115/10CL120", 10}},
-	{0x028040dd, {"altera", "cyclone IV GX", "EP4CGX150", 10}},
+	{0x028040dd, {"altera", "cyclone IV GX",        "EP4CGX150",                10}},
 
 	/* Altera Cyclone V */
 	{0x02b010dd, {"altera", "cyclone V",     "5CGX*3",                10}},
@@ -190,12 +204,17 @@ static std::map <uint32_t, fpga_model> fpga_list = {
 	{0x02d120dd, {"altera", "cyclone V Soc", "5CSE*A5/5CST*5/5CSX*5", 10}},
 
 	/* Altera Max 10 */
-	{0x031820dd, {"altera", "MAX 10", "10M08SAU169C8G", 10}},
-	{0x031050dd, {"altera", "MAX 10", "10M50DAF484",    10}},
+	{0x031820dd, {"altera", "MAX 10", "10M08SAU169C8G",    10}},
+	{0x031050dd, {"altera", "MAX 10", "10M50DAF484",       10}},
+	{0x0318d0dd, {"altera", "MAX 10", "10M40SCE144C8G",    10}},
+	{0x031830dd, {"altera", "MAX 10", "10M16SAU169C8G",    10}},
 
 	/* Altera Cyclone 10 */
 	{0x020f30dd, {"altera", "cyclone 10 LP", "10CL025", 10}},
 	{0x020f50dd, {"altera", "cyclone 10 LP", "10CL055", 10}},
+
+	/* Altera Stratix V */
+	{0x029070dd, {"altera", "stratix V GS", "5SGSD5", 10}},
 
 	/**************************************************************************/
 	/*                             Efinix                                     */
@@ -211,6 +230,7 @@ static std::map <uint32_t, fpga_model> fpga_list = {
 	{0x00660a79, {"efinix", "Titanium", "Ti60",             5}},
 	{0x00360a79, {"efinix", "Titanium", "Ti60ES",           5}},
 	{0x00661a79, {"efinix", "Titanium", "Ti35",             5}},
+	{0x00690a79, {"efinix", "Titanium", "Ti180",            5}},
 
 	/**************************************************************************/
 	/*                             Lattice                                    */
@@ -310,6 +330,7 @@ static std::map <uint32_t, fpga_model> fpga_list = {
 
 	/* Gowin GW2 */
 	{0x0000081b, {"Gowin", "GW2A", "GW2A(R)-18(C)", 8}},
+	{0x0000281B, {"Gowin", "GW2A", "GW2A-55",       8}},
 
 	/* Gowin GW5 */
 	{0x0001081b, {"Gowin", "GW5AST", "GW5AST-138", 8}},

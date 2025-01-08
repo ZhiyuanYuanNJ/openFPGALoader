@@ -166,6 +166,7 @@ void Efinix::reset()
 
 void Efinix::program(unsigned int offset, bool unprotect_flash)
 {
+	bool ret;
 	if (_file_extension.empty())
 		return;
 	if (_mode == Device::NONE_MODE)
@@ -184,7 +185,7 @@ void Efinix::program(unsigned int offset, bool unprotect_flash)
 		}
 	} catch (std::exception &e) {
 		printError("FAIL: " + std::string(e.what()));
-		return;
+		throw std::runtime_error(e.what());
 	}
 
 	printInfo("Parse file ", false);
@@ -193,7 +194,7 @@ void Efinix::program(unsigned int offset, bool unprotect_flash)
 	} else {
 		printError("FAIL");
 		delete bit;
-		return;
+		throw std::runtime_error("Efinix: Failed to parse file: " + _filename);
 	}
 
 	const uint8_t *data = bit->getData();
@@ -204,14 +205,21 @@ void Efinix::program(unsigned int offset, bool unprotect_flash)
 
 	switch (_mode) {
 		case MEM_MODE:
-			programJTAG(data, length);
+			if (!programJTAG(data, length)) {
+				delete bit;
+				throw std::runtime_error("Efinix: Failed to load bitstream");
+			}
 			break;
 		case FLASH_MODE:
 			if (_jtag)
-				SPIInterface::write(offset, const_cast<uint8_t *>(data),
+				ret = SPIInterface::write(offset, const_cast<uint8_t *>(data),
 					length, unprotect_flash);
 			else
-				programSPI(offset, data, length, unprotect_flash);
+				ret = programSPI(offset, data, length, unprotect_flash);
+			if (!ret) {
+				delete bit;
+				throw std::runtime_error("Efinix: Failed to write bitstream in flash");
+			}
 			break;
 		default:
 			return;
@@ -220,11 +228,33 @@ void Efinix::program(unsigned int offset, bool unprotect_flash)
 	delete bit;
 }
 
+bool Efinix::detect_flash()
+{
+	if (_jtag) {
+		return SPIInterface::detect_flash();
+	}
+
+#if 0
+	/* Untested logic in SPI path -- if you test this, and it works,
+	 * uncomment it and submit a PR!  */
+	_spi->gpio_clear(_rst_pin);
+
+	bool rv = reinterpret_cast<SPIInterface *>(_spi)->detect_flash();
+
+	reset();
+
+	return rv;
+#else
+	printError("detect flash not supported");
+	return false;
+#endif
+}
+
 bool Efinix::dumpFlash(uint32_t base_addr, uint32_t len)
 {
-	if (!_spi) {
-		printError("jtag: dumpFlash not supported");
-		return false;
+	if (_jtag) {
+		SPIInterface::set_filename(_filename);
+		return SPIInterface::dump(base_addr, len);
 	}
 
 	uint32_t timeout = 1000;
@@ -243,7 +273,7 @@ bool Efinix::dumpFlash(uint32_t base_addr, uint32_t len)
 		return false;
 	}
 
-	/* release SPI access */
+	/* release SPI access.  XXX later: refactor to use reset() and make sure the behavior is the same */
 	_spi->gpio_set(_rst_pin | _oe_pin);
 	usleep(12000);
 
@@ -260,9 +290,10 @@ bool Efinix::dumpFlash(uint32_t base_addr, uint32_t len)
 	return false;
 }
 
-void Efinix::programSPI(unsigned int offset, const uint8_t *data,
+bool Efinix::programSPI(unsigned int offset, const uint8_t *data,
 		const int length, const bool unprotect_flash)
 {
+	bool ret = true;
 	_spi->gpio_clear(_rst_pin | _oe_pin);
 
 	SPIFlash flash(reinterpret_cast<SPIInterface *>(_spi), unprotect_flash,
@@ -272,13 +303,15 @@ void Efinix::programSPI(unsigned int offset, const uint8_t *data,
 
 	printf("%02x\n", flash.read_status_reg());
 	flash.read_id();
-	flash.erase_and_prog(offset, const_cast<uint8_t *>(data), length);
+	if (0 != flash.erase_and_prog(offset, const_cast<uint8_t *>(data), length))
+		ret = false;
 
 	/* verify write if required */
 	if (_verify)
-		flash.verify(offset, data, length);
+		ret = flash.verify(offset, data, length);
 
 	reset();
+	return ret;
 }
 
 #define SAMPLE_PRELOAD 0x02
@@ -289,7 +322,7 @@ void Efinix::programSPI(unsigned int offset, const uint8_t *data,
 #define ENTERUSER      0x07
 #define USER1          0x08
 
-void Efinix::programJTAG(const uint8_t *data, const int length)
+bool Efinix::programJTAG(const uint8_t *data, const int length)
 {
 	int xfer_len = 512;
 	Jtag::tapState_t tx_end;
@@ -349,6 +382,7 @@ void Efinix::programJTAG(const uint8_t *data, const int length)
 	_jtag->shiftDR(NULL, idc, 4);
 	printf("%02x%02x%02x%02x\n",
 			idc[0], idc[1], idc[2], idc[3]);
+	return true;
 }
 
 bool Efinix::post_flash_access()
@@ -394,7 +428,8 @@ bool Efinix::prepare_flash_access()
 		bridge.parse();
 		const uint8_t *data = bridge.getData();
 		const int length = bridge.getLength() / 8;
-		programJTAG(data, length);
+		if (!programJTAG(data, length))
+			return false;
 	} catch (std::exception &e) {
 		printError(e.what());
 		return false;

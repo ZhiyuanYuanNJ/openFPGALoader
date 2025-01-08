@@ -26,8 +26,10 @@ class SPIInterface {
 			bool skip_reset = false);
 	virtual ~SPIInterface() {}
 
+	bool detect_flash();
 	bool protect_flash(uint32_t len);
 	bool unprotect_flash();
+	bool set_quad_bit(bool set_quad);
 	bool bulk_erase_flash();
 	void set_filename(const std::string &filename) {_spif_filename = filename;}
 

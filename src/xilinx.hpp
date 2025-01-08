@@ -54,6 +54,10 @@ class Xilinx: public Device, SPIInterface {
 		uint32_t dumpRegister(const std::string reg_name);
 
 		/*!
+		 * \brief display SPI flash ID and status register
+		 */
+		bool detect_flash() override;
+		/*!
 		 * \brief protect SPI flash blocks
 		 */
 		bool protect_flash(uint32_t len) override;
@@ -61,6 +65,10 @@ class Xilinx: public Device, SPIInterface {
 		 * \brief unprotect SPI flash blocks
 		 */
 		bool unprotect_flash() override;
+		/*!
+		 * \brief configure Quad mode for SPI Flash
+		 */
+		bool set_quad_bit(bool set_quad) override;
 		/*!
 		 * \brief erase SPI flash blocks
 		 */
@@ -186,6 +194,7 @@ class Xilinx: public Device, SPIInterface {
 			ZYNQMP_FAMILY,
 			XCF_FAMILY,
 			ARTIXUSP_FAMILY,
+			VIRTEXUS_FAMILY,
 			VIRTEXUSP_FAMILY,
 			UNKNOWN_FAMILY  = 999
 		};
@@ -233,7 +242,7 @@ class Xilinx: public Device, SPIInterface {
 		uint16_t _cpld_nb_row; /**< number of flash rows */
 		uint16_t _cpld_nb_col; /**< number of cols in a row */
 		uint16_t _cpld_addr_size; /**< number of addr bits */
-		char _cpld_base_name[7]; /**< cpld name (without package size) */
+		char _cpld_base_name[8]; /**< cpld name (without package size) */
 		int _irlen; /**< IR bit length */
 		std::map<std::string, std::vector<uint8_t>> _ircode_map; /**< bscan instructions based on model */
 		std::string _secondary_filename; /* path to the secondary flash file (SPIx8) */
