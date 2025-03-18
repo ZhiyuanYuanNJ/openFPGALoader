@@ -1,7 +1,7 @@
 - ID: ac701
   Description: Xilinx Artix-7 FPGA AC701 Evaluation Kit
   URL: https://www.xilinx.com/products/boards-and-kits/ek-a7-ac701-g.html
-  FPGA: Artix xc7a200t2fbg676c
+  FPGA: Artix xc7a200tfbg676
   Memory: OK
   Flash: NT
   Constraints: AC701
@@ -10,6 +10,20 @@
   Description: Acorn CLE 215+
   URL: http://squirrelsresearch.com/acorn-cle-215
   FPGA: Artix xc7a200tsbg484
+  Memory: OK
+  Flash: OK
+
+- ID: alinx_ax7201
+  Description: AX7201 FPGA Dev Board & Kit with AMD Artix 7
+  URL: https://www.en.alinx.com/Product/FPGA-Development-Boards/Artix-7/AX7201.html
+  FPGA: Artix xc7a200tsbg484
+  Memory: OK
+  Flash: OK
+
+- ID: alinx_ax7203
+  Description: AX7203 FPGA Dev Board & Kit with AMD Artix 7
+  URL: https://www.en.alinx.com/Product/FPGA-Development-Boards/Artix-7/AX7203.html
+  FPGA: Artix xc7a200tfbg484
   Memory: OK
   Flash: OK
 
@@ -723,6 +737,13 @@
   Memory: OK
   Flash: OK
 
+- ID: tangconsole
+  Description: Sipeed Tang Console (dock board for Tang Mega 60k or 138k SOM)
+  URL: https://wiki.sipeed.com/hardware/en/tang/tang-console/mega-console.html
+  FPGA: Gowin Arora V GW5AT-60 / GW5AT-138
+  Memory: OK
+  Flash: OK
+
 - ID: tangnano
   Description: Sipeed Tang Nano
   URL: https://tangnano.sipeed.com/en/
@@ -995,3 +1016,17 @@
   FPGA: Titanium Ti180J484 (and others)
   Memory: OK
   Flash: NA
+
+- ID: step-max10_v1
+  Description: STEP MAX10 V1
+  URL: https://wiki.stepfpga.com/step-max10
+  FPGA: Altera 10M02SCM153C8G
+  Memory: OK
+  Flash: NA
+
+- ID: step-mxo2_v2
+  Description: STEP MXO2 V2
+  URL: https://wiki.stepfpga.com/xo2-4000hc
+  FPGA: Lattice LCMXO2-4000HC-4MG132CC
+  Memory: OK
+  Flash: OK

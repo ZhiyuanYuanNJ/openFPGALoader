@@ -102,7 +102,7 @@ typedef struct {
 	{_name, {"", _cable, _fpga_part, 0, 0, 0, COMM_DFU, {}, {}, 0, _vid, _pid, _alt}}
 
 static std::map <std::string, target_board_t> board_list = {
-	JTAG_BOARD("ac701",           "xc7a200t2fbg676c", "digilent", 0, 0, CABLE_DEFAULT),
+	JTAG_BOARD("ac701",           "xc7a200tfbg676", "digilent", 0, 0, CABLE_DEFAULT),
 	JTAG_BOARD("acornCle215",     "xc7a200tsbg484", "",         0, 0, CABLE_DEFAULT),
 	JTAG_BOARD("analogMax",       "",               "ft2232",   0, 0, CABLE_DEFAULT),
 	JTAG_BOARD("litex-acorn-baseboard-mini", "xc7a200tsbg484", "", 0, 0, CABLE_DEFAULT),
@@ -111,6 +111,8 @@ static std::map <std::string, target_board_t> board_list = {
 	JTAG_BOARD("alinx_ax516",     "xc6slx16csg324", "",         0, 0, CABLE_DEFAULT),
 	JTAG_BOARD("alinx_ax7101",    "xc7a100tfgg484", "",         0, 0, CABLE_DEFAULT),
 	JTAG_BOARD("alinx_ax7102",    "xc7a100tfgg484", "",         0, 0, CABLE_DEFAULT),
+	JTAG_BOARD("alinx_ax7201",    "xc7a200tfbg484", "",         0, 0, CABLE_DEFAULT),
+	JTAG_BOARD("alinx_ax7203",    "xc7a200tfbg484", "",         0, 0, CABLE_DEFAULT),
 	JTAG_BOARD("antmicro_ddr4_tester", "xc7k160tffg676", "ft4232", 0, 0, CABLE_DEFAULT),
 	JTAG_BOARD("antmicro_ddr5_tester", "xc7k160tffg676", "ft4232", 0, 0, CABLE_DEFAULT),
 	JTAG_BOARD("antmicro_lpddr4_tester", "xc7k70tfbg484", "ft4232", 0, 0, CABLE_DEFAULT),
@@ -209,6 +211,7 @@ static std::map <std::string, target_board_t> board_list = {
 	JTAG_BOARD("spec45",          "xc6slx45tfgg484",  "", 0, 0, CABLE_DEFAULT),
 	JTAG_BOARD("spec150",         "xc6slx150tfgg484", "", 0, 0, CABLE_DEFAULT),
 	JTAG_BOARD("stlv7325",        "xc7k325tffg676", "ft4232", 0, 0, CABLE_MHZ(3)),
+	JTAG_BOARD("tangconsole",     "", "ft2232",     0, 0, CABLE_DEFAULT),
 	JTAG_BOARD("tangnano",        "", "ch552_jtag", 0, 0, CABLE_DEFAULT),
 	JTAG_BOARD("tangnano1k",      "", "ft2232",     0, 0, CABLE_DEFAULT),
 	JTAG_BOARD("tangnano4k",      "", "ft2232",     0, 0, CABLE_DEFAULT),
@@ -223,6 +226,8 @@ static std::map <std::string, target_board_t> board_list = {
 	SPI_BOARD("titanium_ti60_f225","efinix", "efinix_spi_ft4232",
 			DBUS4, DBUS5, DBUS7, DBUS3, DBUS0, DBUS1, DBUS2, DBUS6, 0, CABLE_DEFAULT),
 	JTAG_BOARD("titanium_ti60_f225_jtag", "ti60f225","efinix_jtag_ft4232",  0, 0, CABLE_DEFAULT),
+	SPI_BOARD("trion_t20_bga256",  "efinix", "efinix_spi_ft2232",
+			DBUS4, DBUS5, 0, DBUS3, DBUS0, DBUS1, DBUS2, DBUS6, 0, CABLE_DEFAULT),
 	JTAG_BOARD("trion_t20_bga256_jtag",   "t20f256", "efinix_jtag_ft2232",  0, 0, CABLE_DEFAULT),
 	SPI_BOARD("trion_t120_bga576","efinix", "efinix_spi_ft2232",
 			DBUS4, DBUS5, DBUS7, DBUS3, DBUS0, DBUS1, DBUS2, DBUS6, 0, CABLE_DEFAULT),
@@ -253,7 +258,9 @@ static std::map <std::string, target_board_t> board_list = {
 	JTAG_BOARD("zybo_z7_10",      "xc7z010clg400",  "digilent", 0, 0, CABLE_DEFAULT),
 	JTAG_BOARD("zybo_z7_20",      "xc7z020clg400",  "digilent", 0, 0, CABLE_DEFAULT),
 	JTAG_BOARD("mini_itx",        "xc7z100ffg900", "jtag-smt2-nc", 0, 0, CABLE_DEFAULT),
-	JTAG_BOARD("vmm3",            "xc7s50csga324", "ft2232", 0, 0, CABLE_DEFAULT)
+	JTAG_BOARD("vmm3",            "xc7s50csga324", "ft2232", 0, 0, CABLE_DEFAULT),
+	JTAG_BOARD("step-max10_v1",   "10m02scm153c8g", "usb-blaster",0, 0, CABLE_DEFAULT),
+	JTAG_BOARD("step-mxo2_v2",    "lcmxo2-4000hc-4mg132cc", "ft232",0, 0, CABLE_DEFAULT)
 };
 
 #endif

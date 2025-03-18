@@ -32,25 +32,35 @@ uint8_t *POFParser::getData(const std::string &section_name)
 {
 	if (section_name == "")
 		return (uint8_t*)_bit_data.data();
-	return mem_section[section_name].data;
+	auto section = mem_section.find(section_name);
+	if (section == mem_section.end())
+		return NULL;
+	return (*section).second.data;
 }
 
 int POFParser::getLength(const std::string &section_name)
 {
 	if (section_name == "")
 		return _bit_length;
-	return mem_section[section_name].len;
+	auto section = mem_section.find(section_name);
+	if (section == mem_section.end())
+		return -1;
+	return (*section).second.len;
 }
 
 void POFParser::displayHeader()
 {
 	ConfigBitstreamParser::displayHeader();
+	char mess[1024];
+	snprintf(mess, 1024, "Flag section offset   len      end");
+	printInfo(mess);
 	for (auto it = mem_section.begin(); it != mem_section.end(); it++) {
 		memory_section_t v = (*it).second;
-		char mess[1024];
-		snprintf(mess, 1024, "%02x %4s: ", v.flag, v.section.c_str());
+		snprintf(mess, 1024, "%02x   %4s: ", v.flag, v.section.c_str());
 		printInfo(mess, false);
-		snprintf(mess, 1024, "%08x %08x", v.offset, v.len);
+		// start address + len (in bits) + end addr
+		snprintf(mess, 1024, "  %08x %08x %08x", v.offset, v.len, v.offset + ((v.len/8)-1));
+		/* Note: for CFM0 end address is displayed with another value in () */
 		printSuccess(mess);
 	}
 }
@@ -91,6 +101,10 @@ int POFParser::parse()
 	/* update pointers to memory area */
 	ptr = (uint8_t *)_bit_data.data();
 	mem_section["CFM0"].data = &ptr[mem_section["CFM0"].offset + 0x0C];
+	if (mem_section.find("CFM1") != mem_section.end())
+		mem_section["CFM1"].data = &ptr[mem_section["CFM1"].offset + 0x0C];
+	if (mem_section.find("CFM2") != mem_section.end())
+		mem_section["CFM2"].data = &ptr[mem_section["CFM2"].offset + 0x0C];
 	mem_section["UFM"].data = &ptr[mem_section["UFM"].offset + 0x0C];
 	mem_section["ICB"].data = &ptr[mem_section["ICB"].offset + 0x0C];
 
@@ -100,9 +114,13 @@ int POFParser::parse()
 uint32_t POFParser::parseSection(uint16_t flag, uint32_t pos, uint32_t size)
 {
 	std::string content;
+	std::string t;
+	char mess[1024];
 
-	if (_verbose)
-		printf("%d %u\n", flag, size);
+	if (_verbose) {
+		snprintf(mess, 1024, "Flag: %02x (%d) Size: %u", flag, flag, size);
+		printInfo(mess);
+	}
 
 	/* 0x01: software name/version */
 	/* 0x02: full FPGAs model */
@@ -123,7 +141,7 @@ uint32_t POFParser::parseSection(uint16_t flag, uint32_t pos, uint32_t size)
 			_hdr["tool"] = _raw_data.substr(pos, size);
 			break;
 		case 0x02:  // full FPGA part name
-			_hdr["part_name"] = _raw_data.substr(pos, size);
+			_hdr["part_name"] = _raw_data.substr(pos, size-1); // -1 because '\0'
 			break;
 		case 0x03:  // bitstream/design/xxx name
 			_hdr["design_name"] = _raw_data.substr(pos, size);
@@ -134,12 +152,44 @@ uint32_t POFParser::parseSection(uint16_t flag, uint32_t pos, uint32_t size)
 		case 0x11:  // cfg data
 					// 12 Bytes unknown
 					// followed by UFM/CFM/DSM data
+			if (_verbose) {
+				content = _raw_data.substr(pos, size);
+				uint32_t val0 = ARRAY2INT32((&content.c_str()[0]));
+				uint32_t val1 = ARRAY2INT32((&content.c_str()[4]));
+				uint32_t val2 = ARRAY2INT32((&content.c_str()[8]));
+				printf("Flag 0x11: Unknown %08x %08x %08x\n", val0, val1, val2);
+			}
+
 			_bit_data.resize(size);
 			std::copy(_raw_data.begin() + pos, _raw_data.begin() + pos + size,
 					_bit_data.begin());
 			_bit_length = size * 8;
 			if (_verbose)
 				printf("size %u %zu\n", size, _bit_data.size());
+			break;
+		case 0x13:  // contains usercode / checksum
+			_hdr["usercode"] = std::to_string(ARRAY2INT32((&_raw_data.data()[pos+size-4])));
+			if (_verbose) {
+				t = _raw_data.substr(pos, size);
+				for (size_t i = 0; i < t.size(); i++)
+					printf("%02x ", static_cast<uint8_t>(t[i]));
+				printf("\n");
+				printf("%s\n", t.c_str());
+
+				/* 4 x 32bits */
+				uint32_t sec0, sec1, sec2, sec3;
+				sec0 = (t[0] << 24) | (t[1] << 16) | (t[2] << 8)  | (t[3] << 0);
+				sec1 = (t[4] << 24) | (t[5] << 16) | (t[6] << 8)  | (t[7] << 0);
+				sec2 = (t[8] << 24) | (t[9] << 16) | (t[10] << 8)  | (t[11] << 0);
+				sec3 = ((unsigned char)t[size-4] << 24) |
+					((unsigned char)t[size-3] << 16) |
+					((unsigned char)t[size-2] << 8) |
+					((unsigned char)t[size-1] << 0);
+				printf("sec0: %08x\n", sec0);
+				printf("sec1: %08x\n", sec1);
+				printf("sec2: %08x\n", sec2);
+				printf("sec3: %08x\n", sec3);
+			}
 			break;
 		case 0x1a:  // flash sections
 					// 12Bytes ?
@@ -149,7 +199,6 @@ uint32_t POFParser::parseSection(uint16_t flag, uint32_t pos, uint32_t size)
 			parseFlag26(flag, pos, size, content);
 			break;
 		default:
-			char mess[1024];
 			snprintf(mess, 1024, "unknown flag 0x%02x: offset %u length %u",
 				flag, pos - 6, size);
 			printWarn(mess);

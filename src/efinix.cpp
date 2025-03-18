@@ -83,6 +83,8 @@ Efinix::Efinix(Jtag* jtag, const std::string &filename,
 	std::string spi_board_name = "";
 	if (board_name == "xyloni_jtag") {
 		spi_board_name = "xyloni_spi";
+	} else if (board_name == "trion_t20_bga256_jtag") {
+		spi_board_name = "trion_t20_bga256";
 	} else if (board_name == "trion_t120_bga576_jtag") {
 		spi_board_name = "trion_t120_bga576";
 	} else if (board_name == "titanium_ti60_f225_jtag") {
@@ -379,7 +381,7 @@ bool Efinix::programJTAG(const uint8_t *data, const int length)
 	_jtag->shiftDR(tx, NULL, 100);
 	_jtag->shiftIR(IDCODE, _irlen);
 	uint8_t idc[4];
-	_jtag->shiftDR(NULL, idc, 4);
+	_jtag->shiftDR(NULL, idc, 32);
 	printf("%02x%02x%02x%02x\n",
 			idc[0], idc[1], idc[2], idc[3]);
 	return true;

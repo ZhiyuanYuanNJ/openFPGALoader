@@ -217,6 +217,7 @@ bool Gowin::detectFamily()
 			is_gw2a = true;
 			break;
 		case 0x0001081b: /* GW5AST-138 */
+		case 0x0001481b: /* GW5AT-60 */
 		case 0x0001181b: /* GW5AT-138 */
 		case 0x0001281b: /* GW5A-25 */
 			_external_flash = true;
@@ -251,6 +252,8 @@ bool Gowin::send_command(uint8_t cmd)
 			#define le32toh(x) (x)
 		#endif
 	#endif
+#else
+#include <endian.h>
 #endif
 
 uint32_t Gowin::readReg32(uint8_t cmd)
@@ -392,13 +395,6 @@ void Gowin::programSRAM()
 
 	if (!eraseSRAM())
 		return;
-
-	/* GW5AST-138k WA. Temporary until found correct solution/sequence */
-	if (is_gw5a && _idcode == 0x0001081b) {
-		printf("double eraseSRAM\n");
-		if (!eraseSRAM())
-			return;
-	}
 
 	/* load bitstream in SRAM */
 	if (!writeSRAM(_fs->getData(), _fs->getLength()))
@@ -911,13 +907,18 @@ bool Gowin::eraseSRAM()
 		displayReadReg("before erase sram", status);
 
 	// If flash is invalid, send extra cmd 0x3F before SRAM erase
-	// This is required on GW5A-25
-	bool auto_boot_2nd_fail = (status & 0x8) >> 3;
-	if ((_idcode == 0x0001281B) && auto_boot_2nd_fail)
-	{
-		disableCfg();
+	// This is required on GW5A-25 or GW5AST-138 when timeout bit
+	// is set
+	bool auto_boot_2nd_fail = (status & (1 << 4)) == (1 << 4);
+	bool is_timeout = (status & (1 << 3)) == (1 << 3);
+	if (is_gw5a && (is_timeout || auto_boot_2nd_fail)) {
+		send_command(CONFIG_ENABLE);
 		send_command(0x3F);
+		send_command(CONFIG_DISABLE);
 		send_command(NOOP);
+		send_command(READ_IDCODE);
+		send_command(NOOP);
+		_jtag->toggleClk(125 * 8);
 	}
 
 	if (!enableCfg()) {

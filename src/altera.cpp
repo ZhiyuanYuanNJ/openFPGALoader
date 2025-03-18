@@ -7,18 +7,19 @@
 
 #include <string.h>
 
+#include <map>
 #include <string>
 
 #include "common.hpp"
-#include "jtag.hpp"
 #include "device.hpp"
 #include "epcq.hpp"
+#include "jtag.hpp"
 #include "progressBar.hpp"
 #include "rawParser.hpp"
-#include "pofParser.hpp"
 #if defined (_WIN64) || defined (_WIN32)
 #include "pathHelper.hpp"
 #endif
+#include "pofParser.hpp"
 
 #define IDCODE 6
 #define USER0  0x0C
@@ -37,6 +38,15 @@ Altera::Altera(Jtag *jtag, const std::string &filename,
 	_device_package(device_package), _spiOverJtagPath(spiOverJtagPath),
 	_vir_addr(0x1000), _vir_length(14), _clk_period(1)
 {
+	/* check device family */
+	_idcode = _jtag->get_target_device_id();
+	string family = fpga_list[_idcode].family;
+	if (family == "MAX 10") {
+		_fpga_family = MAX10_FAMILY;
+	} else {
+		_fpga_family = CYCLONE_MISC;  // FIXME
+	}
+
 	if (prg_type == Device::RD_FLASH) {
 		_mode = Device::READ_MODE;
 	} else {
@@ -49,9 +59,11 @@ Altera::Altera(Jtag *jtag, const std::string &filename,
 					_mode = Device::MEM_MODE;
 				else
 					_mode = Device::SPI_MODE;
-			} else if (_file_extension == "pof") { // MAX10
+			} else if (_file_extension == "pof") {  // MAX10
 				_mode = Device::FLASH_MODE;
-			} else { // unknown type -> sanity check
+			} else if (_fpga_family == MAX10_FAMILY) {
+				_mode = Device::FLASH_MODE;
+			} else {  // unknown type -> sanity check
 				if (prg_type == Device::WR_SRAM) {
 					printError("file has an unknown type:");
 					printError("\tplease use rbf or svf file");
@@ -64,16 +76,6 @@ Altera::Altera(Jtag *jtag, const std::string &filename,
 			}
 		}
 	}
-
-	/* check device family */
-	_idcode = _jtag->get_target_device_id();
-	string family = fpga_list[_idcode].family;
-	if (family == "MAX 10") {
-		_fpga_family = MAX10_FAMILY;
-	} else {
-		_fpga_family = CYCLONE_MISC; // FIXME
-	}
-
 }
 
 Altera::~Altera()
@@ -235,7 +237,7 @@ void Altera::program(unsigned int offset, bool unprotect_flash)
 
 	/* Specific case for MAX10 */
 	if (_fpga_family == MAX10_FAMILY) {
-		max10_program();
+		max10_program(offset);
 		return;
 	}
 
@@ -296,95 +298,227 @@ uint32_t Altera::idCode()
 #define MAX10_ISC_ENABLE        {0xcc, 0x02}
 #define MAX10_ISC_DISABLE       {0x01, 0x02}
 #define MAX10_ISC_ADDRESS_SHIFT {0x03, 0x02}
+#define MAX10_ISC_ERASE         {0xf2, 0x02}
 #define MAX10_ISC_PROGRAM       {0xf4, 0x02}
 #define MAX10_DSM_ICB_PROGRAM   {0xF4, 0x03}
 #define MAX10_DSM_VERIFY        {0x07, 0x03}
 #define MAX10_DSM_CLEAR         {0xf2, 0x03}
 #define MAX10_BYPASS            {0xFF, 0x03}
 
-typedef struct {
+struct Altera::max10_mem_t {
+	uint32_t check_addr0;  // something to check before sequence
 	uint32_t dsm_addr;
 	uint32_t dsm_len;  // 32bits
-	uint32_t ufm_addr; // UFM1 addr
-	uint32_t ufm_len[2];
-	uint32_t cfm_addr; // CFM2 addr
-	uint32_t cfm_len[3];
-} max10_mem_t;
+	uint32_t ufm_addr;  // UFM1 addr
+	uint32_t ufm_len[2]; // 32bits
+	uint32_t cfm_addr;  // CFM2 addr
+	uint32_t cfm_len[3]; // 32bits
+	uint32_t sectors_erase_addr[5]; // UFM1, UFM0, CFM2, CFM1, CFM0
+	uint32_t done_bit_addr;
+	uint32_t pgm_success_addr;
+};
 
-static const std::map<uint32_t, max10_mem_t> max10_memory_map = {
-	{0x031820dd, {
-		0x0000, 512, // DSM
-		0x0200, {4096, 4096}, // UFM
-		0x2200, {35840, 14848, 20992}} // CFM
+const std::map<uint32_t, Altera::max10_mem_t> Altera::max10_memory_map = {
+	{0x031820dd, { // 10M08SAU
+		.check_addr0 = 0x80005,  // check_addr0
+		.dsm_addr = 0x0000, 512,  // DSM
+		.ufm_addr = 0x0200, .ufm_len = {4096, 4096},  // UFM
+		.cfm_addr = 0x2200, .cfm_len = {35840, 14848, 20992},  // CFM
+		.sectors_erase_addr = {0x17ffff, 0x27ffff, 0x37ffff, 0x47ffff, 0x57ffff}, // sectors erase address
+		.done_bit_addr = 0x0009,  // done bit
+		.pgm_success_addr = 0x000b}  // program success addr
+	},
+	{0x031830dd, { // 10M16SA
+		.check_addr0 = 0x80009,  // check_addr0
+		.dsm_addr = 0x0000, 1024,  // DSM
+		.ufm_addr = 0x0400, .ufm_len = {4096, 4096},  // UFM
+		.cfm_addr = 0x2400, .cfm_len = {67584, 28672, 38912},  // CFM
+		.sectors_erase_addr = {0x17ffff, 0x27ffff, 0x37ffff, 0x47ffff, 0x57ffff}, // sectors erase address
+		.done_bit_addr = 0x0011,  // done bit
+		.pgm_success_addr = 0x0015}  // program success addr
 	},
 };
 
-void Altera::max10_program()
+/* Write an arbitrary file in UFM1 and UFM0
+ * FIXME: in some mode its also possible to uses CFM2 & CFM1
+ */
+bool Altera::max10_program_ufm(const Altera::max10_mem_t *mem, unsigned int offset)
 {
-	POFParser _bit(_filename, true);
+	RawParser _bit(_filename, true);
 	_bit.parse();
 	_bit.displayHeader();
+	const uint8_t *data = _bit.getData();
+	const uint32_t length = _bit.getLength() / 8;
+	const uint32_t base_addr = mem->ufm_addr + offset;
 
-	uint32_t base_addr; // CFM2 addr
-	uint32_t offset = 0;
+	uint8_t *buff = (uint8_t *)malloc(length);
+	if (!buff) {
+		printError("max10_program_ufm: Failed to allocate buffer");
+		return false;
+	}
 
+	/* check */
+	const uint32_t ufmx_len = 4 * (mem->ufm_len[0] + mem->ufm_len[1]);
+	if (base_addr > length) {
+		printError("Error: start offset is out of UFM region");
+		return false;
+	}
+	if (base_addr + length > ufmx_len) {
+		printError("Error: end address is out of UFM region");
+		return false;
+	}
+
+	/* data needs to be re-ordered */
+	for (uint32_t i = 0; i < length; i+=4) {
+		for (int b = 0; b < 4; b++) {
+			buff[i + b] = data[i + (3-b)];
+		}
+	}
+
+	// Start!
+	max10_flow_enable();
+
+	/* Erase UFM1 & UFM0 */
+	printInfo("Erase UFM ", false);
+	max10_flow_erase(mem, 0x3);
+	printInfo("Done");
+
+	/* Program UFM1 & UFM0 */
+	// Simplify code:
+	// UFM0 follows UFM1, so we don't need to iterate
+	printInfo("Write UFM");
+	writeXFM(buff, base_addr, 0, length / 4);
+
+	/* Verify */
+	if (_verify)
+		verifyxFM(buff, base_addr, 0, length / 4);
+
+	max10_flow_disable();
+
+	free(buff);
+
+	return true;
+}
+
+void Altera::max10_program(unsigned int offset)
+{
+	uint32_t base_addr;
+
+	/* Needs to have some specifics informations about internal flash size/organisation
+	 * and some magics.
+	 */
 	auto mem_map = max10_memory_map.find(_idcode);
 	if (mem_map == max10_memory_map.end()) {
 		printError("Model not supported. Please update max10_memory_map.");
 		throw std::runtime_error("Model not supported. Please update max10_memory_map.");
 	}
-	max10_mem_t mem = mem_map->second;
+	const Altera::max10_mem_t mem = mem_map->second;
 
-	const uint8_t *cfm_data = _bit.getData("CFM0");
-	const uint8_t *ufm_data = _bit.getData("UFM");
+	if (_file_extension != "pof") {
+		max10_program_ufm(&mem, offset);
+		return;
+	}
+
+	POFParser _bit(_filename, _verbose);
+	_bit.parse();
+	_bit.displayHeader();
+
+	/*
+	 * MAX10 memory map differs according to internal configuration mode
+	 * - 1   dual       compressed image:               CFM0 is used for img0, CFM1 + CFM2 for img1
+	 * - 2   single   uncompressed image:               CFM0 + CFM1 are used, CFM2 used to additional UFM
+	 * - 3/4 single (un)compressed image with mem init: CFM0 + CFM1 + CFM2
+	 * - 5   single     compressed image:               CFM0 is used, CFM1&CFM2 used to additional UFM
+	 */
+	/* For Mode (POF content):
+	 * 1  :  UFM: UFM1+UFM0 (in this order, this POF section size == memory section size),
+	 *      CFM1: CFM2+CFM1 (in this order, this section == CFM2+CFM1 size),
+	 *      CFM0: CFM0 (this section size == CFM0 size)
+	 *
+	 * 2  :  UFM: UFM1+UFM0+CFM2 (in this order, this section size == full UFM section size + CFM2 size)
+	 *      CFM0: CFM1+CFM0 (in this order, this section size == CFM1+CFM0)
+	 *
+	 * 3/4:  UFM: UFM1+UFM0 (in this order, this section size == full UFM section size)
+	 *      CFM0: CFM2+CFM1+CFM0 (in this order, this section size == full CFM section size)
+	 *
+	 * 5  :  UFM: UFM1+UFM0+CFM2+CFM1 (in this order, this section size == full UFM section size + CFM2 size + CFM1 size)
+	 *      CFM0: CFM0 (this section size == CFM0)
+	 */
+	/* OPTIONS:
+	 * ON_CHIP_BITSTREAM_DECOMPRESSION ON/OFF
+	 * Dual Compressed Images (256Kbits UFM):
+	 *     set_global_assignment -name INTERNAL_FLASH_UPDATE_MODE "DUAL IMAGES"
+	 * Single Compressed Image (1376Kbits UFM):
+	 *     set_global_assignment -name INTERNAL_FLASH_UPDATE_MODE "SINGLE COMP IMAGE"
+	 * Single Compressed Image with Memory Initialization (256Kbits UFM):
+	 *     set_global_assignment -name INTERNAL_FLASH_UPDATE_MODE "SINGLE COMP IMAGE WITH ERAM"
+	 * Single Uncompressed Image (912Kbits UFM):
+	 *     set_global_assignment -name INTERNAL_FLASH_UPDATE_MODE "SINGLE IMAGE"
+	 * Single Uncompressed Image with Memory Initialization (256Kbits UFM):
+	 *     set_global_assignment -name INTERNAL_FLASH_UPDATE_MODE "SINGLE IMAGE WITH ERAM"
+	 */
+
+	/*
+	 * Memory organisation based on internal flash configuration mode is great but in fact
+	 * POF configuration data match MAX10 memory organisation:
+	 * its more easy to start with POF's CFM section and uses pointer based on prev ptr and section size
+	 */
+
+	uint8_t *ufm_data[2], *cfm_data[3];  // memory pointers (2 for UFM, 3 for CFM)
+
+	// UFM Mapping
+	ufm_data[1] = _bit.getData("UFM");
+	ufm_data[0] = &ufm_data[1][mem.ufm_len[0] * 4];  // Just after UFM1 (but size may differs
+
+	// CFM Mapping
+	cfm_data[2] = &ufm_data[0][mem.ufm_len[1] * 4];  // First CFM section in FPGA internal flash
+	cfm_data[1] = &cfm_data[2][mem.cfm_len[2] * 4];  // Second CFM section but just after CFM2
+	cfm_data[0] = &cfm_data[1][mem.cfm_len[1] * 4];  // last CFM section but just after CFM1
+
+	// DSM Mapping
 	const uint8_t *dsm_data = _bit.getData("ICB");
-	const int dsm_len = _bit.getLength("ICB") / 32; // getLength (bits) dsm_len in 32bits word
+	const int dsm_len = _bit.getLength("ICB") / 32;  // getLength (bits) dsm_len in 32bits word
 
-	max_10_flow_enable();
+	// Start!
+	max10_flow_enable();
 
-	max10_flow_erase();
+	max10_flow_erase(&mem, 0x1F);
 	max10_dsm_verify();
 
 	/* Write */
-	// CFM2->0
-	offset = 0;
-	base_addr = mem.cfm_addr;
-	for (int i = 2; i >= 0; i--) {
-		printInfo("Write CFM" + std::to_string(i));
-		writeXFM(cfm_data, base_addr, offset, mem.cfm_len[i]);
-		base_addr += mem.cfm_len[i];
-		offset += (mem.cfm_len[i] * 4);
-	}
-	// UFM1->0
-	offset = 0;
+
+	// UFM 1 -> 0
 	base_addr = mem.ufm_addr;
 	for (int i = 1; i >= 0; i--) {
 		printInfo("Write UFM" + std::to_string(i));
-		writeXFM(ufm_data, base_addr, offset, mem.ufm_len[i]);
-		offset += mem.ufm_len[i] * 4;
+		writeXFM(ufm_data[i], base_addr, 0, mem.ufm_len[i]);
 		base_addr += mem.ufm_len[i];
+	}
+
+	// CFM2 -> 0
+	base_addr = mem.cfm_addr;
+	for (int i = 2; i >= 0; i--) {
+		printInfo("Write CFM" + std::to_string(i));
+		writeXFM(cfm_data[i], base_addr, 0, mem.cfm_len[i]);
+		base_addr += mem.cfm_len[i];
 	}
 
 	/* Verify */
 	if (_verify) {
-		// CFM2->0
-		offset = 0;
-		base_addr = mem.cfm_addr;
-		for (int i = 2; i >= 0; i--) {
-			printInfo("Verify CFM" + std::to_string(i));
-			verifyxFM(cfm_data, base_addr, offset, mem.cfm_len[i]);
-			base_addr += mem.cfm_len[i];
-			offset += (mem.cfm_len[i] * 4);
-		}
-
-		// UFM1->0
-		offset = 0;
+		// UFM 1 -> 0
 		base_addr = mem.ufm_addr;
 		for (int i = 1; i >= 0; i--) {
 			printInfo("Verify UFM" + std::to_string(i));
-			verifyxFM(ufm_data, base_addr, offset, mem.ufm_len[i]);
-			offset += mem.ufm_len[i] * 4;
+			verifyxFM(ufm_data[i], base_addr, 0, mem.ufm_len[i]);
 			base_addr += mem.ufm_len[i];
+		}
+
+		// CFM2->0
+		base_addr = mem.cfm_addr;
+		for (int i = 2; i >= 0; i--) {
+			printInfo("Verify CFM" + std::to_string(i));
+			verifyxFM(cfm_data[i], base_addr, 0, mem.cfm_len[i]);
+			base_addr += mem.cfm_len[i];
 		}
 	}
 
@@ -393,13 +527,13 @@ void Altera::max10_program()
 	max10_dsm_program(dsm_data, dsm_len);
 	max10_dsm_verify();
 
-	max10_flow_program_donebit();
+	max10_flow_program_donebit(mem.done_bit_addr);
 	max10_dsm_verify();
-	max10_dsm_program_success();
+	max10_dsm_program_success(mem.pgm_success_addr);
 	max10_dsm_verify();
 
 	/* disable ISC flow */
-	max_10_flow_disable();
+	max10_flow_disable();
 	_jtag->set_state(Jtag::RUN_TEST_IDLE);
 }
 
@@ -410,27 +544,50 @@ static void word_to_array(uint32_t in, uint8_t *out) {
 	out[3] = (in >> 24) & 0xff;
 }
 
-void Altera::max10_flow_erase()
+/* Two possibilities:
+ * - full internal flash must be erased (to write a POF file): DSM_CLEAR must be used to
+ *   perform a full erase
+ * - only a sub-set of sectors must be erased (to update a CPU firmware): only specified
+ *   sectors have to be erased using MAX10_ISC_ERASE instruction after moving to a specific
+ *   erase address
+ */
+void Altera::max10_flow_erase(const Altera::max10_mem_t *mem, const uint8_t erase_sectors)
 {
 	const uint32_t dsm_clear_delay = 350000120 / _clk_period;
-	const uint8_t dsm_clear[2] = MAX10_DSM_CLEAR;
+	/* All sectors must be erased: DSM_CLEAR is better/faster */
+	if (erase_sectors == 0x1f) {
+		const uint8_t dsm_clear[2] = MAX10_DSM_CLEAR;
 
-	max10_addr_shift(0x000000);
+		max10_addr_shift(0x000000);
 
-	_jtag->shiftIR((unsigned char *)dsm_clear, NULL, IRLENGTH);
-	_jtag->set_state(Jtag::RUN_TEST_IDLE);
-	_jtag->toggleClk(dsm_clear_delay);
+		_jtag->shiftIR((unsigned char *)dsm_clear, NULL, IRLENGTH);
+		_jtag->set_state(Jtag::RUN_TEST_IDLE);
+		_jtag->toggleClk(dsm_clear_delay);
+	} else {
+		//const uint32_t isc_clear_delay = 5120 / _clk_period;
+		const uint8_t isc_erase[2] = MAX10_ISC_ERASE;
+
+		/* each bit is a sector to erase */
+		for (int sect = 0; sect < 5; sect++) {
+			if ((erase_sectors >> sect) & 0x01) {
+				max10_addr_shift(mem->sectors_erase_addr[sect]);
+				_jtag->shiftIR((unsigned char *)isc_erase, NULL, IRLENGTH);
+				_jtag->set_state(Jtag::RUN_TEST_IDLE);
+				_jtag->toggleClk(dsm_clear_delay);
+			}
+		}
+	}
 }
 
 void Altera::writeXFM(const uint8_t *cfg_data, uint32_t base_addr, uint32_t offset, uint32_t len)
 {
-	uint8_t *ptr = (uint8_t *)cfg_data + offset; // FIXME: maybe adding offset here ?
+	uint8_t *ptr = (uint8_t *)cfg_data + offset;  // FIXME: maybe adding offset here ?
 	const uint8_t isc_program[2] = MAX10_ISC_PROGRAM;
 
 	/* precompute some delays required during loop */
-	const uint32_t isc_program2_delay = 320000 / _clk_period; // ns must be 350us
+	const uint32_t isc_program2_delay = 320000 / _clk_period;  // ns must be 350us
 
-	ProgressBar progress("Verify", len, 50, _quiet);
+	ProgressBar progress("Write Flash", len, 50, _quiet);
 	for (uint32_t i = 0; i < len; i+=512) {
 		bool must_send_sir = true;
 		uint32_t max = (i + 512 <= len)? 512 : len - i;
@@ -468,9 +625,7 @@ void Altera::writeXFM(const uint8_t *cfg_data, uint32_t base_addr, uint32_t offs
 uint32_t Altera::verifyxFM(const uint8_t *cfg_data, uint32_t base_addr, uint32_t offset,
 	uint32_t len)
 {
-	uint8_t *ptr = (uint8_t *)cfg_data + offset; // avoid passing offset ?
-
-	//const uint32_t isc_read_delay = 5120 / _clk_period;
+	uint8_t *ptr = (uint8_t *)cfg_data + offset;  // avoid passing offset ?
 
 	const uint8_t read_cmd[2] = MAX10_ISC_READ;
 	uint32_t errors = 0;
@@ -510,9 +665,9 @@ uint32_t Altera::verifyxFM(const uint8_t *cfg_data, uint32_t base_addr, uint32_t
 	return errors;
 }
 
-void Altera::max_10_flow_enable()
+void Altera::max10_flow_enable()
 {
-	const int enable_delay  = 350000120 / _clk_period; // must be 1 tck
+	const int enable_delay  = 350000120 / _clk_period;  // must be 1 tck
 	const uint8_t cmd[2] = MAX10_ISC_ENABLE;
 
 	_jtag->shiftIR((unsigned char *)cmd, NULL, IRLENGTH);
@@ -520,10 +675,10 @@ void Altera::max_10_flow_enable()
 	_jtag->toggleClk(enable_delay);
 }
 
-void Altera::max_10_flow_disable()
+void Altera::max10_flow_disable()
 {
-	//ISC_DISABLE  WAIT  100.0e-3)
-	//BYPASS	   WAIT  305.0e-6
+	// ISC_DISABLE  WAIT  100.0e-3)
+	// BYPASS	   WAIT  305.0e-6
 	const int disable_len = (1e9 * 350e-3) / _clk_period;
 	const int bypass_len = (3 + (1e9 * 1e-3) / _clk_period);
 	const uint8_t cmd0[2] = MAX10_ISC_DISABLE;
@@ -560,7 +715,7 @@ void Altera::max10_dsm_program(const uint8_t *dsm_data, const uint32_t dsm_len)
 			_jtag->set_state(Jtag::RUN_TEST_IDLE);
 			_jtag->toggleClk(program_del);
 			_jtag->shiftDR(dat, NULL, 32, Jtag::RUN_TEST_IDLE);
-			_jtag->toggleClk(write_del); // 305.0e-6
+			_jtag->toggleClk(write_del);  // 305.0e-6
 		}
 	}
 }
@@ -570,8 +725,8 @@ bool Altera::max10_dsm_verify()
 	const uint32_t dsm_delay = 5120 / _clk_period;
 	const uint8_t cmd[2] = MAX10_DSM_VERIFY;
 
-	const uint8_t tx = 0x00; // 1 in bsdl, 0 in svf
-	uint8_t rx=0;
+	const uint8_t tx = 0x00;  // 1 in bsdl, 0 in svf
+	uint8_t rx = 0;
 
 	_jtag->shiftIR((unsigned char *)cmd, NULL, IRLENGTH);
 	_jtag->set_state(Jtag::RUN_TEST_IDLE);
@@ -594,7 +749,6 @@ void Altera::max10_addr_shift(uint32_t addr)
 
 	uint8_t addr_arr[4];
 	word_to_array(base_addr, addr_arr);
-	//printf("%08x %08x\n", addr, base_addr);
 
 	/* FIXME/TODO:
 	 * 1. in bsdl file no delay between IR and DR
@@ -604,49 +758,123 @@ void Altera::max10_addr_shift(uint32_t addr)
 	 */
 	_jtag->shiftIR((unsigned char *)cmd, NULL, IRLENGTH, Jtag::PAUSE_IR);
 	_jtag->set_state(Jtag::RUN_TEST_IDLE);
-	_jtag->toggleClk(5120 / _clk_period); // fine delay ?
+	_jtag->toggleClk(5120 / _clk_period);  // fine delay ?
 	_jtag->shiftDR(addr_arr, NULL, 23, Jtag::RUN_TEST_IDLE);
 }
 
-void Altera::max10_dsm_program_success()
+void Altera::max10_dsm_program_success(const uint32_t pgm_success_addr)
 {
-	const uint32_t prog_len = 5120 / _clk_period; // ??
-	const uint32_t prog2_len = 320000 / _clk_period; // ??
-													 //
+	const uint32_t prog_len = 5120 / _clk_period;  // ??
+	const uint32_t prog2_len = 320000 / _clk_period;  // ??
+
 	const uint8_t cmd[2] = MAX10_DSM_ICB_PROGRAM;
 
 	uint8_t magic[4];
-	word_to_array(0x6C48A50F, magic); // FIXME: uses define instead
+	word_to_array(0x6C48A50F, magic);  // FIXME: uses define instead
 
-	max10_addr_shift(0x00000b);
+	max10_addr_shift(pgm_success_addr);
 
 	/* Send 'Magic' code */
 	_jtag->shiftIR((unsigned char *)cmd, NULL, IRLENGTH, Jtag::PAUSE_IR);
 	_jtag->set_state(Jtag::RUN_TEST_IDLE);
-	_jtag->toggleClk(prog_len); // fine delay ?
+	_jtag->toggleClk(prog_len);  // fine delay ?
 	_jtag->shiftDR(magic, NULL, 32, Jtag::RUN_TEST_IDLE);
-	_jtag->toggleClk(prog2_len); // must wait 305.0e-6
+	_jtag->toggleClk(prog2_len);  // must wait 305.0e-6
 }
 
-void Altera::max10_flow_program_donebit()
+void Altera::max10_flow_program_donebit(const uint32_t done_bit_addr)
 {
-	const uint32_t addr_shift_delay = 5120 / _clk_period; // ??
-	const uint32_t icb_program_delay = 320000 / _clk_period; // ??
+	const uint32_t addr_shift_delay = 5120 / _clk_period;  // ??
+	const uint32_t icb_program_delay = 320000 / _clk_period;  // ??
 
 	uint8_t cmd[2] = MAX10_DSM_ICB_PROGRAM;
 
 	uint8_t magic[4];
-	word_to_array(0x6C48A50F, magic); // FIXME: uses define instead
+	word_to_array(0x6C48A50F, magic);  // FIXME: uses define instead
 
 	/* Send target address */
-	max10_addr_shift(0x000009);
+	max10_addr_shift(done_bit_addr);
 
 	/* Send 'Magic' code */
 	_jtag->shiftIR(cmd, NULL, IRLENGTH, Jtag::PAUSE_IR);
 	_jtag->set_state(Jtag::RUN_TEST_IDLE);
-	_jtag->toggleClk(addr_shift_delay); // fine delay ?
+	_jtag->toggleClk(addr_shift_delay);  // fine delay ?
 	_jtag->shiftDR(magic, NULL, 32, Jtag::RUN_TEST_IDLE);
-	_jtag->toggleClk(icb_program_delay); // must wait 305.0e-6
+	_jtag->toggleClk(icb_program_delay);  // must wait 305.0e-6
+}
+
+bool Altera::max10_read_section(FILE *fd, const uint32_t base_addr, const uint32_t len)
+{
+	const uint8_t read_cmd[2] = MAX10_ISC_READ;
+
+	ProgressBar progress("Dump", len, 50, _quiet);
+	for (uint32_t i = 0; i < len; i += 512) {
+		const uint32_t max = (i + 512 <= len)? 512 : len - i;
+		progress.display(i);
+
+		/* send address */
+		max10_addr_shift(base_addr + i);
+
+		/* send read command */
+		_jtag->shiftIR((unsigned char *)read_cmd, NULL, IRLENGTH, Jtag::PAUSE_IR);
+
+		for (uint32_t ii = 0; ii < max; ii++) {
+			uint8_t data[4];
+
+			_jtag->shiftDR(NULL, data, 32, Jtag::RUN_TEST_IDLE);
+			fwrite(data, sizeof(uint8_t), 4, fd);
+		}
+	}
+	progress.done();
+
+	return true;
+}
+
+bool Altera::max10_dump()
+{
+	uint32_t base_addr;
+
+	auto mem_map = max10_memory_map.find(_idcode);
+	if (mem_map == max10_memory_map.end()) {
+		printError("Model not supported. Please update max10_memory_map.");
+		return false;
+	}
+	const max10_mem_t mem = mem_map->second;
+
+	/* Access clk frequency to store clk_period required
+	 * for all operations. Can't be done at CTOR because
+	 * frequency be changed between these 2 methods.
+	 */
+	_clk_period = 1e9/static_cast<float>(_jtag->getClkFreq());
+
+	FILE *fd = fopen(_filename.c_str(), "w");
+	if (!fd) {
+		printError("Failed to open dump file.");
+		return false;
+	}
+
+	max10_flow_enable();
+
+	/* UFM 1 -> 0 */
+	base_addr = mem.ufm_addr;
+	for (int i = 1; i >= 0; i--) {
+		printInfo("Dump UFM" + std::to_string(i));
+		max10_read_section(fd, base_addr, mem.ufm_len[i]);
+		base_addr += mem.ufm_len[i];
+	}
+
+	/* CFM 2 -> 0 */
+	base_addr = mem.cfm_addr;
+	for (int i = 2; i >= 0; i--) {
+		printInfo("Dump CFM" + std::to_string(i));
+		max10_read_section(fd, base_addr, mem.cfm_len[i]);
+		base_addr += mem.cfm_len[i];
+	}
+
+	max10_flow_disable();
+
+	fclose(fd);
+	return true;
 }
 
 /* SPI interface */

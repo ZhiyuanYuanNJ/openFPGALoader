@@ -17,14 +17,23 @@
 
 using namespace std;
 
-#define ANLOGICCABLE_VID 0x0547
-#define ANLOGICCABLE_PID 0x1002
+#define ANLOGICCABLE_VIDv1 0x336C
+#define ANLOGICCABLE_VIDv2 0x336C
+#define ANLOGICCABLE_PID   0x1002
 
 #define ANLOGICCABLE_CONF_EP  0x08
 #define ANLOGICCABLE_WRITE_EP 0x06
 #define ANLOGICCABLE_READ_EP  0x82
 
 #define ANLOGICCABLE_FREQ_CMD 0x01
+
+/* Pinout:
+ * PA0 - JTAG TDO
+ * PA1 - JTAG TMS
+ * PA2 - JTAG TDI
+ * PA3 - JTAG TCK
+ * ref: https://github.com/AnlogicInfo/anlogic-usbjtag
+*/
 
 enum analogicCablePin {
 	ANLOGICCABLE_TCK_PIN = (1 << 2),
@@ -54,12 +63,19 @@ AnlogicCable::AnlogicCable(uint32_t clkHZ):
 		throw std::exception();
 	}
 
+	/* First: Try with original (old) VID */
 	dev_handle = libusb_open_device_with_vid_pid(usb_ctx,
-					ANLOGICCABLE_VID, ANLOGICCABLE_PID);
+					ANLOGICCABLE_VIDv1, ANLOGICCABLE_PID);
+	/* If not found: try with new VID */
 	if (!dev_handle) {
-		cerr << "fails to open device" << endl;
-		libusb_exit(usb_ctx);
-		throw std::exception();
+		dev_handle = libusb_open_device_with_vid_pid(usb_ctx,
+						ANLOGICCABLE_VIDv2, ANLOGICCABLE_PID);
+
+		if (!dev_handle) {
+			cerr << "fails to open device" << endl;
+			libusb_exit(usb_ctx);
+			throw std::exception();
+		}
 	}
 
 	ret = libusb_claim_interface(dev_handle, 0);
